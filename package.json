@@ -1,0 +1,22 @@
+{
+  "name": "stockhelper",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:server": "npm run dev --workspace=apps/server",
+    "build": "npm run build --workspaces",
+    "db:up": "docker-compose up -d stockhelper-db",
+    "db:down": "docker-compose stop stockhelper-db",
+    "db:migrate": "npm run migrate --workspace=apps/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "typescript": "^5.6.0"
+  }
+}

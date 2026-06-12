@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  stockhelper-db:
+    image: postgres:17
+    container_name: stockhelper-postgres
+    environment:
+      POSTGRES_DB: stockhelper
+      POSTGRES_USER: stockhelper
+      POSTGRES_PASSWORD: stockhelper2024
+    ports:
+      - "5435:5432"
+    volumes:
+      - stockhelper_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  stockhelper_pgdata:

@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "StockHelper Bridge",
+  "version": "1.0.0",
+  "description": "Connect StockHelper app to AI chat pages",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "storage",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://chat.deepseek.com/*",
+    "http://localhost:3001/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chat.deepseek.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "StockHelper Bridge"
+  }
+}
