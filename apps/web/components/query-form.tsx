@@ -178,34 +178,39 @@ export function QueryForm() {
   const isBusy = status === 'pending' || status === 'running'
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center justify-between">
-            发起问题
+    <div className="space-y-5">
+      <Card className="card-shadow-md border-border/60">
+        <CardHeader className="pb-4 border-b border-border/50 bg-muted/20 rounded-t-xl">
+          <CardTitle className="text-base font-semibold flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <span className="w-1.5 h-5 rounded-full bg-primary inline-block" />
+              发起问题
+            </span>
             {status !== 'idle' && (
-              <Badge variant={statusBadge[status].variant}>{statusBadge[status].label}</Badge>
+              <Badge variant={statusBadge[status].variant} className="text-xs">
+                {statusBadge[status].label}
+              </Badge>
             )}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="question">问题</Label>
+              <Label htmlFor="question" className="text-sm font-medium">问题</Label>
               <Textarea
                 id="question"
                 placeholder="例：分析贵州茅台2024年的基本面，包括营收增长、利润率和估值情况..."
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 rows={4}
-                className="resize-none"
+                className="resize-none focus-visible:ring-primary/50 text-sm"
                 disabled={isBusy}
               />
             </div>
 
             <div className="flex gap-3">
               <div className="flex-1 space-y-1.5">
-                <Label htmlFor="stockCode">股票代码（可选）</Label>
+                <Label htmlFor="stockCode" className="text-sm font-medium">股票代码（可选）</Label>
                 <Input
                   id="stockCode"
                   placeholder="如：600519"
@@ -213,26 +218,32 @@ export function QueryForm() {
                   onChange={(e) => setStockCode(e.target.value)}
                   maxLength={6}
                   disabled={isBusy}
+                  className="font-mono focus-visible:ring-primary/50"
                 />
               </div>
               <div className="flex-1 space-y-1.5">
-                <Label htmlFor="stockName">股票名称（可选）</Label>
+                <Label htmlFor="stockName" className="text-sm font-medium">股票名称（可选）</Label>
                 <Input
                   id="stockName"
                   placeholder="如：贵州茅台"
                   value={stockName}
                   onChange={(e) => setStockName(e.target.value)}
                   disabled={isBusy}
+                  className="focus-visible:ring-primary/50"
                 />
               </div>
             </div>
 
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <div className="flex items-center gap-3">
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+            <div className="flex items-center gap-3 pt-1">
               <Button
                 type="submit"
                 disabled={!question.trim() || isBusy}
-                className="gap-2"
+                className="gap-2 px-5 shadow-sm"
               >
                 {isBusy
                   ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -240,7 +251,10 @@ export function QueryForm() {
                 发送给 AI
               </Button>
               {status === 'completed' && queryId && (
-                <a href={`/records/${queryId}`} className="text-sm text-primary underline-offset-4 hover:underline">
+                <a
+                  href={`/records/${queryId}`}
+                  className="text-sm text-primary font-medium hover:underline underline-offset-4 flex items-center gap-1"
+                >
                   查看结果 →
                 </a>
               )}
@@ -250,20 +264,24 @@ export function QueryForm() {
       </Card>
 
       {history.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground font-medium">最近提问</p>
+        <div className="space-y-2.5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
+            最近提问
+          </p>
           <div className="space-y-1.5">
             {history.map((item) => (
               <div key={item.id} className="flex items-center gap-1 group">
                 <button
                   type="button"
                   onClick={() => setQuestion(stripPrefix(item.question))}
-                  className="flex-1 text-left px-3 py-2.5 rounded-lg border bg-background hover:bg-muted transition-colors text-sm min-w-0"
+                  className="flex-1 text-left px-3.5 py-2.5 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-primary/20 transition-all text-sm min-w-0 card-shadow"
                   disabled={isBusy}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {item.stock_code && (
-                      <Badge variant="outline" className="font-mono shrink-0 text-xs">{item.stock_code}</Badge>
+                      <Badge variant="secondary" className="font-mono shrink-0 text-xs bg-primary/10 text-primary border-0">
+                        {item.stock_code}
+                      </Badge>
                     )}
                     <span className="truncate text-foreground">{stripPrefix(item.question)}</span>
                     <span className="shrink-0 text-muted-foreground text-xs ml-auto">
@@ -274,7 +292,7 @@ export function QueryForm() {
                 <button
                   type="button"
                   onClick={(e) => deleteHistory(item.id, e)}
-                  className="shrink-0 p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

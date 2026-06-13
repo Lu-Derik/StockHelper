@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { TrendingUp } from 'lucide-react'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -34,29 +35,45 @@ export function StockSidebar() {
   if (stocks.length === 0) return null
 
   return (
-    <aside className="w-44 shrink-0 space-y-1.5 sticky top-20 self-start">
-      <p className="text-xs font-medium text-muted-foreground px-1">股票列表</p>
-      <div className="space-y-0.5 max-h-[calc(100vh-6rem)] overflow-y-auto">
-        {stocks.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => {
-            if (pathname === '/records') {
-              router.push(`/records?code=${encodeURIComponent(s.code)}`)
-            } else {
-              router.push(`/?code=${encodeURIComponent(s.code)}&name=${encodeURIComponent(s.name)}`)
-            }
-          }}
-            className={`w-full text-left px-2.5 py-2 rounded-lg text-sm transition-colors border truncate ${
-              activeCode === s.code
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background hover:bg-muted border-transparent hover:border-border'
-            }`}
-          >
-            {s.name}<span className="font-mono opacity-60">({s.code})</span>
-          </button>
-        ))}
+    <aside className="w-44 shrink-0 sticky top-20 self-start">
+      <div className="rounded-xl border bg-card card-shadow overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-1.5 px-3 py-2.5 border-b bg-muted/40">
+          <TrendingUp className="h-3.5 w-3.5 text-primary" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            自选股票
+          </span>
+        </div>
+
+        {/* Stock list */}
+        <div className="py-1 max-h-[calc(100vh-8rem)] overflow-y-auto">
+          {stocks.map((s) => {
+            const active = activeCode === s.code
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  if (pathname === '/records') {
+                    router.push(`/records?code=${encodeURIComponent(s.code)}`)
+                  } else {
+                    router.push(`/?code=${encodeURIComponent(s.code)}&name=${encodeURIComponent(s.name)}`)
+                  }
+                }}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                  active
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                <span className="block truncate">{s.name}</span>
+                <span className={`block text-xs font-mono mt-0.5 ${active ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                  {s.code}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
     </aside>
   )

@@ -101,33 +101,35 @@ function RecordsList() {
       ) : filtered.length === 0 ? (
         <p className="text-muted-foreground text-sm">暂无记录</p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {filtered.map((r) => (
             <Link key={r.id} href={`/records/${r.id}`}>
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="px-4 py-2.5 flex items-center gap-3">
+              <Card className="hover:border-primary/30 hover:card-shadow-hover transition-all cursor-pointer card-shadow border-border/60 group">
+                <CardContent className="px-4 py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
+                    <div className="flex items-center gap-2 mb-1">
                       {r.stock_code && (
-                        <Badge variant="outline" className="text-xs font-mono">
+                        <Badge variant="secondary" className="text-xs font-mono bg-primary/10 text-primary border-0 shrink-0">
                           {r.stock_code}
                         </Badge>
                       )}
-                      <Badge variant={STATUS_VARIANT[r.status] ?? 'outline'} className="text-xs">
+                      <Badge variant={STATUS_VARIANT[r.status] ?? 'outline'} className="text-xs shrink-0">
                         {STATUS_LABEL[r.status] ?? r.status}
                       </Badge>
+                      <p className="text-xs text-muted-foreground ml-auto shrink-0">
+                        {new Date(r.created_at).toLocaleString('zh-CN')}
+                      </p>
                     </div>
-                    <p className="text-sm truncate">{r.question}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(r.created_at).toLocaleString('zh-CN')}
-                    </p>
+                    <p className="text-sm truncate text-foreground/90">{r.question}</p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {r.response_id && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    {r.response_id && (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                       onClick={(e) => handleDelete(e, r.id)}
                       disabled={deleting === r.id}
                       aria-label="删除"
