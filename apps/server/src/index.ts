@@ -5,6 +5,7 @@ import cors from '@koa/cors'
 import bodyParser from 'koa-bodyparser'
 import queriesRouter from './routes/queries'
 import stocksRouter from './routes/stocks'
+import linkPreviewRouter from './routes/linkPreview'
 
 const app = new Koa()
 const PORT = parseInt(process.env.PORT ?? '3001')
@@ -36,6 +37,7 @@ root.get('/health', (ctx) => { ctx.body = { ok: true } })
 app.use(root.routes())
 app.use(queriesRouter.routes()).use(queriesRouter.allowedMethods())
 app.use(stocksRouter.routes()).use(stocksRouter.allowedMethods())
+app.use(linkPreviewRouter.routes()).use(linkPreviewRouter.allowedMethods())
 
 app.listen(PORT, () => {
   console.log(`🚀 Koa server running on http://localhost:${PORT}`)
