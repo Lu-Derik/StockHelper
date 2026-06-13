@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -180,19 +180,6 @@ export function QueryForm() {
   return (
     <div className="space-y-5">
       <Card className="card-shadow-md border-border/60">
-        <CardHeader className="pb-4 border-b border-border/50 bg-muted/20 rounded-t-xl">
-          <CardTitle className="text-base font-semibold flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <span className="w-1.5 h-5 rounded-full bg-primary inline-block" />
-              发起问题
-            </span>
-            {status !== 'idle' && (
-              <Badge variant={statusBadge[status].variant} className="text-xs">
-                {statusBadge[status].label}
-              </Badge>
-            )}
-          </CardTitle>
-        </CardHeader>
         <CardContent className="pt-5">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
@@ -208,7 +195,8 @@ export function QueryForm() {
               />
             </div>
 
-            <div className="flex gap-3">
+            {/* Stock code / name / send button — all on one row */}
+            <div className="flex gap-3 items-end">
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="stockCode" className="text-sm font-medium">股票代码（可选）</Label>
                 <Input
@@ -232,6 +220,27 @@ export function QueryForm() {
                   className="focus-visible:ring-primary/50"
                 />
               </div>
+              <div className="flex flex-col items-start gap-1.5">
+                {/* invisible label to align button height with inputs */}
+                <span className="text-sm invisible select-none">_</span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="submit"
+                    disabled={!question.trim() || isBusy}
+                    className="gap-2 px-5 shadow-sm whitespace-nowrap"
+                  >
+                    {isBusy
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Send className="h-4 w-4" />}
+                    发送给 AI
+                  </Button>
+                  {status !== 'idle' && (
+                    <Badge variant={statusBadge[status].variant} className="text-xs whitespace-nowrap">
+                      {statusBadge[status].label}
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
 
             {error && (
@@ -239,26 +248,14 @@ export function QueryForm() {
                 {error}
               </p>
             )}
-            <div className="flex items-center gap-3 pt-1">
-              <Button
-                type="submit"
-                disabled={!question.trim() || isBusy}
-                className="gap-2 px-5 shadow-sm"
+            {status === 'completed' && queryId && (
+              <a
+                href={`/records/${queryId}`}
+                className="text-sm text-primary font-medium hover:underline underline-offset-4 flex items-center gap-1"
               >
-                {isBusy
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Send className="h-4 w-4" />}
-                发送给 AI
-              </Button>
-              {status === 'completed' && queryId && (
-                <a
-                  href={`/records/${queryId}`}
-                  className="text-sm text-primary font-medium hover:underline underline-offset-4 flex items-center gap-1"
-                >
-                  查看结果 →
-                </a>
-              )}
-            </div>
+                查看结果 →
+              </a>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -270,29 +267,32 @@ export function QueryForm() {
           </p>
           <div className="space-y-1.5">
             {history.map((item) => (
-              <div key={item.id} className="flex items-center gap-1 group">
+              <div
+                key={item.id}
+                className="group flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-primary/20 transition-all text-sm card-shadow"
+              >
+                {/* clickable area */}
                 <button
                   type="button"
                   onClick={() => setQuestion(stripPrefix(item.question))}
-                  className="flex-1 text-left px-3.5 py-2.5 rounded-xl border border-border/60 bg-card hover:bg-accent hover:border-primary/20 transition-all text-sm min-w-0 card-shadow"
+                  className="flex-1 text-left min-w-0 flex items-center gap-2"
                   disabled={isBusy}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    {item.stock_code && (
-                      <Badge variant="secondary" className="font-mono shrink-0 text-xs bg-primary/10 text-primary border-0">
-                        {item.stock_code}
-                      </Badge>
-                    )}
-                    <span className="truncate text-foreground">{stripPrefix(item.question)}</span>
-                    <span className="shrink-0 text-muted-foreground text-xs ml-auto">
-                      {new Date(item.created_at).toLocaleDateString('zh-CN')}
-                    </span>
-                  </div>
+                  {item.stock_code && (
+                    <Badge variant="secondary" className="font-mono shrink-0 text-xs bg-primary/10 text-primary border-0">
+                      {item.stock_code}
+                    </Badge>
+                  )}
+                  <span className="truncate text-foreground">{stripPrefix(item.question)}</span>
                 </button>
+                {/* date + delete — right-aligned inside the row */}
+                <span className="shrink-0 text-muted-foreground text-xs">
+                  {new Date(item.created_at).toLocaleDateString('zh-CN')}
+                </span>
                 <button
                   type="button"
                   onClick={(e) => deleteHistory(item.id, e)}
-                  className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+                  className="shrink-0 p-1 rounded-md text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
