@@ -30,6 +30,13 @@ const BOLL_LEGEND = [
   { label: 'LOW', color: '#f97316' },
 ]
 
+const C1 = '#eab308', C2 = '#3b82f6', C3 = '#a855f7'
+const SUB_LEGEND: Record<'macd' | 'kdj' | 'rsi', { label: string; color: string }[]> = {
+  macd: [{ label: 'DIF', color: C1 }, { label: 'DEA', color: C2 }],
+  kdj: [{ label: 'K', color: C1 }, { label: 'D', color: C2 }, { label: 'J', color: C3 }],
+  rsi: [{ label: 'RSI6', color: C1 }, { label: 'RSI12', color: C2 }, { label: 'RSI24', color: C3 }],
+}
+
 function KLinePage() {
   const searchParams = useSearchParams()
   const [code, setCode] = useState(searchParams.get('code') ?? '')
@@ -40,7 +47,9 @@ function KLinePage() {
   const [tsCode, setTsCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [indicators, setIndicators] = useState<Indicators>({ ma: true, boll: false })
+  const [indicators, setIndicators] = useState<Indicators>({
+    ma: true, boll: false, macd: false, kdj: false, rsi: false,
+  })
 
   const fetchKline = useCallback((c: string, d: number) => {
     if (!c.trim()) return
@@ -114,10 +123,28 @@ function KLinePage() {
               </Button>
             </form>
 
-            <div className="flex items-center gap-2 ml-auto">
-              {/* Indicator toggles */}
+            <div className="flex items-center gap-2 ml-auto flex-wrap">
+              {/* Main-chart overlays */}
               <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
                 {([['ma', 'MA'], ['boll', 'BOLL']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setIndicators((s) => ({ ...s, [key]: !s[key] }))}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      indicators[key]
+                        ? 'bg-background text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Sub-pane indicators */}
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                {([['macd', 'MACD'], ['kdj', 'KDJ'], ['rsi', 'RSI']] as const).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
@@ -182,6 +209,14 @@ function KLinePage() {
                     BOLL·{m.label}
                   </span>
                 ))}
+                {(['macd', 'kdj', 'rsi'] as const).map((key) =>
+                  indicators[key] && SUB_LEGEND[key].map((m) => (
+                    <span key={`${key}-${m.label}`} className="flex items-center gap-1.5 text-muted-foreground">
+                      <span className="w-3 h-0.5 rounded-full" style={{ background: m.color }} />
+                      {m.label}
+                    </span>
+                  ))
+                )}
               </div>
             </div>
           )}
