@@ -180,8 +180,8 @@ export function QueryForm() {
   return (
     <div className="space-y-5">
       <Card className="card-shadow-md border-border/60">
-        <CardContent className="pt-5">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="pt-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="question" className="text-sm font-medium">问题</Label>
               <Textarea
@@ -220,14 +220,14 @@ export function QueryForm() {
                   className="focus-visible:ring-primary/50"
                 />
               </div>
-              <div className="flex flex-col items-start gap-1.5">
-                {/* invisible label to align button height with inputs */}
+              <div className="flex-1 flex flex-col gap-1.5">
+                {/* invisible label keeps button vertically aligned with inputs */}
                 <span className="text-sm invisible select-none">_</span>
                 <div className="flex items-center gap-2">
                   <Button
                     type="submit"
                     disabled={!question.trim() || isBusy}
-                    className="gap-2 px-5 shadow-sm whitespace-nowrap"
+                    className="flex-1 gap-2 shadow-sm"
                   >
                     {isBusy
                       ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -235,7 +235,7 @@ export function QueryForm() {
                     发送给 AI
                   </Button>
                   {status !== 'idle' && (
-                    <Badge variant={statusBadge[status].variant} className="text-xs whitespace-nowrap">
+                    <Badge variant={statusBadge[status].variant} className="text-xs whitespace-nowrap shrink-0">
                       {statusBadge[status].label}
                     </Badge>
                   )}
