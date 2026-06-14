@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
 
 interface Props { html: string }
 
@@ -79,7 +78,7 @@ function attachCitePopup(container: HTMLElement): () => void {
 
     if (!previewCache.has(url)) {
       try {
-        const res = await fetch(`${API}/api/link-preview?url=${encodeURIComponent(url)}`)
+        const res = await apiFetch(`/api/link-preview?url=${encodeURIComponent(url)}`)
         const d = (await res.json()) as LinkPreview
         previewCache.set(url, d)
         if (currentUrl === url) render(url, d)

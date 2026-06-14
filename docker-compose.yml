@@ -14,5 +14,35 @@ services:
       - stockhelper_pgdata:/var/lib/postgresql/data
     restart: unless-stopped
 
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: stockhelper-server
+    env_file:
+      - apps/server/.env
+    environment:
+      # Inside the compose network the DB host is the service name, not localhost.
+      DATABASE_URL: postgresql://stockhelper:stockhelper2024@stockhelper-db:5432/stockhelper
+      PORT: 3001
+    ports:
+      # Exposed on localhost so the Chrome extension can reach it directly.
+      - "3001:3001"
+    depends_on:
+      - stockhelper-db
+    restart: unless-stopped
+
+  # Cloudflare Tunnel: exposes the local server over HTTPS at the api hostname
+  # configured in the Zero Trust dashboard. No inbound ports are opened.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: stockhelper-tunnel
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - server
+    restart: unless-stopped
+
 volumes:
   stockhelper_pgdata:

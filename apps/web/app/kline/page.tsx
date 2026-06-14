@@ -8,8 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { KLineChart, type Bar, type Indicators } from '@/components/kline-chart'
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
 
 const RANGES: { label: string; days: number }[] = [
   { label: '近3月', days: 65 },
@@ -55,7 +54,7 @@ function KLinePage() {
     if (!c.trim()) return
     setLoading(true)
     setError('')
-    fetch(`${API}/api/kline?code=${encodeURIComponent(c.trim())}&days=${d}`)
+    apiFetch(`/api/kline?code=${encodeURIComponent(c.trim())}&days=${d}`)
       .then((r) => r.json())
       .then((res) => {
         if (!res.success) throw new Error(res.error ?? '获取失败')

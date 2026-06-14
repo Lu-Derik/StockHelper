@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { ChevronRight, Search, Trash2, ListFilter } from 'lucide-react'
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
 
 interface QueryRecord {
   id: number
@@ -44,7 +44,7 @@ function RecordsList() {
 
   const load = (code?: string) => {
     const qs = code ? `?pageSize=100&stockCode=${encodeURIComponent(code)}` : '?pageSize=100'
-    fetch(`${API}/api/queries${qs}`)
+    apiFetch(`/api/queries${qs}`)
       .then((r) => r.json())
       .then((d) => { setRecords(d.data ?? []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -56,7 +56,7 @@ function RecordsList() {
     e.preventDefault()
     e.stopPropagation()
     setDeleting(id)
-    await fetch(`${API}/api/queries/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/queries/${id}`, { method: 'DELETE' })
     setRecords((prev) => prev.filter((r) => r.id !== id))
     setDeleting(null)
   }

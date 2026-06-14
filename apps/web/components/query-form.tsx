@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
+
 const PENDING_KEY = 'stockhelper_pending_query'
 
 type Status = 'idle' | 'pending' | 'running' | 'completed' | 'failed'
@@ -77,7 +78,7 @@ export function QueryForm() {
   }, [searchParams])
 
   useEffect(() => {
-    fetch(`${API}/api/queries?pageSize=20&status=completed`)
+    apiFetch(`/api/queries?pageSize=20&status=completed`)
       .then((r) => r.json())
       .then((d) => {
         if (!d.data) return
@@ -95,7 +96,7 @@ export function QueryForm() {
 
   const deleteHistory = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation()
-    await fetch(`${API}/api/queries/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/queries/${id}`, { method: 'DELETE' })
     setHistory((prev) => prev.filter((h) => h.id !== id))
   }
 
@@ -112,7 +113,7 @@ export function QueryForm() {
     const finalQuestion = prefix + question.trim()
 
     try {
-      const res = await fetch(`${API}/api/queries`, {
+      const res = await apiFetch(`/api/queries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: finalQuestion, stockCode: stockCode.trim() || undefined }),
@@ -121,7 +122,7 @@ export function QueryForm() {
       if (!data.success) throw new Error(data.error)
 
       if (stockCode.trim() && stockName.trim()) {
-        fetch(`${API}/api/stocks`, {
+        apiFetch(`/api/stocks`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -151,7 +152,7 @@ export function QueryForm() {
     const q = displayQuestion || (loadPending()?.displayQuestion ?? '')
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${API}/api/queries/${id}`)
+        const res = await apiFetch(`/api/queries/${id}`)
         const data = await res.json()
         const s: Status = data.query?.status
         if (s === 'completed' || s === 'failed') {

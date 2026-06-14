@@ -9,7 +9,7 @@ import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
 
 interface ResponseData {
   format: string
@@ -22,7 +22,7 @@ export default function RecordDetailPage() {
   const router = useRouter()
 
   const handleDelete = async () => {
-    await fetch(`${API}/api/queries/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/queries/${id}`, { method: 'DELETE' })
     router.push('/records')
   }
   const [html, setHtml] = useState<ResponseData | null>(null)
@@ -30,7 +30,7 @@ export default function RecordDetailPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch(`${API}/api/queries/${id}/response?format=html`)
+    apiFetch(`/api/queries/${id}/response?format=html`)
       .then((r) => r.json())
       .then((h) => {
         if (!h.success) throw new Error(h.error ?? 'Not found')

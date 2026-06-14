@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { TrendingUp } from 'lucide-react'
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
 
 interface Stock {
   id: number
@@ -21,7 +21,7 @@ export function StockSidebar() {
   const activeCode = searchParams.get('code') ?? ''
 
   const load = () =>
-    fetch(`${API}/api/stocks`)
+    apiFetch(`/api/stocks`)
       .then((r) => r.json())
       .then((d) => { if (d.data) setStocks(d.data) })
       .catch(() => {})

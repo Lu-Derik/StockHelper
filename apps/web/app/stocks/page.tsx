@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Plus } from 'lucide-react'
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+import { apiFetch } from '@/lib/api'
 
 interface Stock { id: number; code: string; name: string; market: 'SH' | 'SZ'; created_at: string }
 
@@ -20,14 +20,14 @@ export default function StocksPage() {
   const [saving, setSaving] = useState(false)
 
   const load = () =>
-    fetch(`${API}/api/stocks`).then((r) => r.json()).then((d) => setStocks(d.data ?? []))
+    apiFetch(`/api/stocks`).then((r) => r.json()).then((d) => setStocks(d.data ?? []))
 
   useEffect(() => { load() }, [])
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await fetch(`${API}/api/stocks`, {
+    await apiFetch(`/api/stocks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, name, market }),
