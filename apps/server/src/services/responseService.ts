@@ -7,6 +7,66 @@ const turndown = new TurndownService({
   codeBlockStyle: 'fenced',
 })
 
+// 6→SH, 0/3→SZ; BJ (4/8) is folded to SZ since stocks.market only allows SH/SZ
+function marketOf(code: string): 'SH' | 'SZ' {
+  return code.startsWith('6') ? 'SH' : 'SZ'
+}
+
+// Extract the primary "name(code)" pair from response text.
+// Matches 贵州茅台（600519） / 贵州茅台(600519) and picks the most-mentioned code.
+function extractStock(text: string): { code: string; name: string } | null {
+  // A-share names are 2–4 chars; capping at 4 anchors to the name adjacent to
+  // the paren rather than greedily swallowing the preceding sentence.
+  const re = /([一-龥A-Za-z*]{2,4})\s*[（(]\s*(\d{6})\s*[)）]/g
+  const counts = new Map<string, { name: string; n: number }>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const name = m[1].trim()
+    const code = m[2]
+    const cur = counts.get(code)
+    if (cur) cur.n += 1
+    else counts.set(code, { name, n: 1 })
+  }
+  if (counts.size === 0) return null
+  let best: { code: string; name: string; n: number } | null = null
+  for (const [code, v] of counts) {
+    if (!best || v.n > best.n) best = { code, name: v.name, n: v.n }
+  }
+  return best ? { code: best.code, name: best.name } : null
+}
+
+// Auto-register the stock referenced by a query into the stocks table.
+// Prefers the code the user supplied; otherwise extracts name(code) from the response.
+async function autoRegisterStock(queryId: number, markdown: string) {
+  const { rows } = await pool.query(
+    `SELECT stock_code FROM queries WHERE id = $1`,
+    [queryId]
+  )
+  const providedCode: string | null = rows[0]?.stock_code ?? null
+
+  const extracted = extractStock(markdown)
+  if (!extracted && !providedCode) return
+
+  const code = providedCode ?? extracted!.code
+  if (!/^\d{6}$/.test(code)) return
+  const name = extracted?.name ?? null
+
+  if (name) {
+    await pool.query(
+      `INSERT INTO stocks (code, name, market) VALUES ($1, $2, $3)
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name`,
+      [code, name, marketOf(code)]
+    )
+  } else {
+    // No name available — insert a placeholder only if the stock is new
+    await pool.query(
+      `INSERT INTO stocks (code, name, market) VALUES ($1, $2, $3)
+       ON CONFLICT (code) DO NOTHING`,
+      [code, code, marketOf(code)]
+    )
+  }
+}
+
 export async function saveResponse(queryId: number, rawHtml: string) {
   const markdown = turndown.turndown(rawHtml)
 
@@ -20,4 +80,11 @@ export async function saveResponse(queryId: number, rawHtml: string) {
     `UPDATE queries SET status = 'completed', completed_at = NOW() WHERE id = $1`,
     [queryId]
   )
+
+  // Best-effort: keep the sidebar's stock list in sync (non-fatal)
+  try {
+    await autoRegisterStock(queryId, markdown)
+  } catch {
+    /* extraction is optional */
+  }
 }

@@ -158,6 +158,8 @@ export function QueryForm() {
           setStatus(s)
           savePending(null)
           clearInterval(interval)
+          // server may have auto-registered a stock from the response
+          if (s === 'completed') window.dispatchEvent(new CustomEvent('stocks-updated'))
         } else if (s === 'running') {
           setStatus('running')
           savePending({ queryId: id, displayQuestion: q, status: 'running' })
