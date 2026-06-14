@@ -179,8 +179,8 @@ export function QueryForm() {
 
   return (
     <div className="space-y-5">
-      <Card className="card-shadow-md border-border/60">
-        <CardContent className="pt-3">
+      <Card className="card-shadow-md border-border/60 pt-3">
+        <CardContent className="pt-0">
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="question" className="text-sm font-medium">问题</Label>
