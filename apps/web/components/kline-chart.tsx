@@ -8,6 +8,7 @@ import {
   LineSeries,
   CrosshairMode,
   ColorType,
+  LineStyle,
   type IChartApi,
   type Time,
 } from 'lightweight-charts'
@@ -22,16 +23,24 @@ export interface Bar {
   volume: number
 }
 
+export interface Indicators {
+  ma: boolean
+  boll: boolean
+}
+
 interface Props {
   bars: Bar[]
+  indicators: Indicators
 }
 
 // A-share convention: 红涨绿跌 (red = up, green = down)
 const UP = '#ef4444'
 const DOWN = '#10b981'
 
-function ma(bars: Bar[], period: number) {
-  const out: { time: Time; value: number }[] = []
+type LinePoint = { time: Time; value: number }
+
+function ma(bars: Bar[], period: number): LinePoint[] {
+  const out: LinePoint[] = []
   let sum = 0
   for (let i = 0; i < bars.length; i++) {
     sum += bars[i].close
@@ -41,7 +50,25 @@ function ma(bars: Bar[], period: number) {
   return out
 }
 
-export function KLineChart({ bars }: Props) {
+// Bollinger Bands: middle = SMA(period), upper/lower = middle ± k * stddev
+function boll(bars: Bar[], period = 20, k = 2) {
+  const upper: LinePoint[] = [], mid: LinePoint[] = [], lower: LinePoint[] = []
+  for (let i = period - 1; i < bars.length; i++) {
+    let sum = 0
+    for (let j = i - period + 1; j <= i; j++) sum += bars[j].close
+    const mean = sum / period
+    let sq = 0
+    for (let j = i - period + 1; j <= i; j++) sq += (bars[j].close - mean) ** 2
+    const sd = Math.sqrt(sq / period)
+    const t = bars[i].time as Time
+    mid.push({ time: t, value: +mean.toFixed(2) })
+    upper.push({ time: t, value: +(mean + k * sd).toFixed(2) })
+    lower.push({ time: t, value: +(mean - k * sd).toFixed(2) })
+  }
+  return { upper, mid, lower }
+}
+
+export function KLineChart({ bars, indicators }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const { resolvedTheme } = useTheme()
@@ -62,10 +89,7 @@ export function KLineChart({ bars }: Props) {
         fontFamily: 'inherit',
         attributionLogo: false,
       },
-      grid: {
-        vertLines: { color: grid },
-        horzLines: { color: grid },
-      },
+      grid: { vertLines: { color: grid }, horzLines: { color: grid } },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: { borderColor: border, scaleMargins: { top: 0.08, bottom: 0.28 } },
       timeScale: { borderColor: border, rightOffset: 4, fixLeftEdge: true, fixRightEdge: true },
@@ -99,22 +123,33 @@ export function KLineChart({ bars }: Props) {
       }))
     )
 
-    // Moving averages
-    const maConfigs: [number, string][] = [[5, '#eab308'], [10, '#3b82f6'], [20, '#a855f7']]
-    for (const [period, color] of maConfigs) {
-      if (bars.length > period) {
-        const line = chart.addSeries(LineSeries, {
-          color, lineWidth: 1,
-          priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
-        })
-        line.setData(ma(bars, period))
+    const addLine = (data: LinePoint[], color: string, style = LineStyle.Solid) => {
+      if (data.length === 0) return
+      const line = chart.addSeries(LineSeries, {
+        color, lineWidth: 1, lineStyle: style,
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      })
+      line.setData(data)
+    }
+
+    if (indicators.ma) {
+      const maConfigs: [number, string][] = [[5, '#eab308'], [10, '#3b82f6'], [20, '#a855f7']]
+      for (const [period, color] of maConfigs) {
+        if (bars.length > period) addLine(ma(bars, period), color)
       }
+    }
+
+    if (indicators.boll && bars.length > 20) {
+      const { upper, mid, lower } = boll(bars, 20, 2)
+      addLine(upper, '#f97316', LineStyle.Dashed)
+      addLine(mid, '#06b6d4')
+      addLine(lower, '#f97316', LineStyle.Dashed)
     }
 
     chart.timeScale().fitContent()
 
     return () => { chart.remove(); chartRef.current = null }
-  }, [bars, resolvedTheme])
+  }, [bars, resolvedTheme, indicators.ma, indicators.boll])
 
   return <div ref={containerRef} className="w-full h-[480px]" />
 }

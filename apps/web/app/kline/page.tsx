@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { KLineChart, type Bar } from '@/components/kline-chart'
+import { KLineChart, type Bar, type Indicators } from '@/components/kline-chart'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -24,6 +24,12 @@ const MA_LEGEND = [
   { label: 'MA20', color: '#a855f7' },
 ]
 
+const BOLL_LEGEND = [
+  { label: 'UP', color: '#f97316' },
+  { label: 'MID', color: '#06b6d4' },
+  { label: 'LOW', color: '#f97316' },
+]
+
 function KLinePage() {
   const searchParams = useSearchParams()
   const [code, setCode] = useState(searchParams.get('code') ?? '')
@@ -34,6 +40,7 @@ function KLinePage() {
   const [tsCode, setTsCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [indicators, setIndicators] = useState<Indicators>({ ma: true, boll: false })
 
   const fetchKline = useCallback((c: string, d: number) => {
     if (!c.trim()) return
@@ -107,21 +114,42 @@ function KLinePage() {
               </Button>
             </form>
 
-            <div className="flex items-center gap-1 ml-auto bg-muted/50 rounded-lg p-1">
-              {RANGES.map((r) => (
-                <button
-                  key={r.days}
-                  type="button"
-                  onClick={() => setDays(r.days)}
-                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                    days === r.days
-                      ? 'bg-background text-primary shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 ml-auto">
+              {/* Indicator toggles */}
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                {([['ma', 'MA'], ['boll', 'BOLL']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setIndicators((s) => ({ ...s, [key]: !s[key] }))}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      indicators[key]
+                        ? 'bg-background text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Time range */}
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+                {RANGES.map((r) => (
+                  <button
+                    key={r.days}
+                    type="button"
+                    onClick={() => setDays(r.days)}
+                    className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                      days === r.days
+                        ? 'bg-background text-primary shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -141,11 +169,17 @@ function KLinePage() {
                   {up ? '+' : ''}{change.toFixed(2)} ({up ? '+' : ''}{changePct.toFixed(2)}%)
                 </span>
               </div>
-              <div className="ml-auto flex items-center gap-3 text-xs">
-                {MA_LEGEND.map((m) => (
+              <div className="ml-auto flex items-center gap-3 text-xs flex-wrap justify-end">
+                {indicators.ma && MA_LEGEND.map((m) => (
                   <span key={m.label} className="flex items-center gap-1.5 text-muted-foreground">
                     <span className="w-3 h-0.5 rounded-full" style={{ background: m.color }} />
                     {m.label}
+                  </span>
+                ))}
+                {indicators.boll && BOLL_LEGEND.map((m, i) => (
+                  <span key={`boll-${i}`} className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className="w-3 h-0.5 rounded-full" style={{ background: m.color }} />
+                    BOLL·{m.label}
                   </span>
                 ))}
               </div>
@@ -164,7 +198,7 @@ function KLinePage() {
                 <p className="text-sm text-destructive">{error}</p>
               </div>
             ) : bars.length > 0 ? (
-              <KLineChart bars={bars} />
+              <KLineChart bars={bars} indicators={indicators} />
             ) : (
               <div className="h-[480px] flex flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                 <CandlestickChart className="h-10 w-10 text-muted-foreground/30" />
