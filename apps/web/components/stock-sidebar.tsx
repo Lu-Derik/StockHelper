@@ -56,6 +56,8 @@ export function StockSidebar() {
                 onClick={() => {
                   if (pathname === '/records') {
                     router.push(`/records?code=${encodeURIComponent(s.code)}`)
+                  } else if (pathname === '/kline') {
+                    router.push(`/kline?code=${encodeURIComponent(s.code)}`)
                   } else {
                     router.push(`/?code=${encodeURIComponent(s.code)}&name=${encodeURIComponent(s.name)}`)
                   }

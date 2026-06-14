@@ -6,6 +6,7 @@ import bodyParser from 'koa-bodyparser'
 import queriesRouter from './routes/queries'
 import stocksRouter from './routes/stocks'
 import linkPreviewRouter from './routes/linkPreview'
+import klineRouter from './routes/kline'
 
 const app = new Koa()
 const PORT = parseInt(process.env.PORT ?? '3001')
@@ -38,6 +39,7 @@ app.use(root.routes())
 app.use(queriesRouter.routes()).use(queriesRouter.allowedMethods())
 app.use(stocksRouter.routes()).use(stocksRouter.allowedMethods())
 app.use(linkPreviewRouter.routes()).use(linkPreviewRouter.allowedMethods())
+app.use(klineRouter.routes()).use(klineRouter.allowedMethods())
 
 app.listen(PORT, () => {
   console.log(`🚀 Koa server running on http://localhost:${PORT}`)
