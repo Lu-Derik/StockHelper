@@ -1,5 +1,5 @@
 // Offscreen document — runs persistently, polls server every 3 seconds
-const SERVER = 'http://localhost:3001'
+const SERVER = 'http://localhost:3011'
 
 setInterval(async () => {
   try {

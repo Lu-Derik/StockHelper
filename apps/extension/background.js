@@ -1,5 +1,5 @@
 // StockHelper Bridge — poll-based, MV3-safe
-const SERVER = 'http://localhost:3001'
+const SERVER = 'http://localhost:3011'
 const VERSION = 'v7-sibling-toolbar'
 let dispatchBusy = false
 let captureState = null  // { tabId, queryId, startedAt }

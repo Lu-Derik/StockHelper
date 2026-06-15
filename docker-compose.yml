@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   stockhelper-db:
     image: postgres:17
@@ -26,8 +24,10 @@ services:
       DATABASE_URL: postgresql://stockhelper:stockhelper2024@stockhelper-db:5432/stockhelper
       PORT: 3001
     ports:
-      # Exposed on localhost so the Chrome extension can reach it directly.
-      - "3001:3001"
+      # Host 3011 → container 3001. 3011 avoids clashing with the n8n tunnel's
+      # liaozai-api route (which targets localhost:3001). The Chrome extension
+      # connects to localhost:3011; the Stock tunnel uses server:3001 internally.
+      - "3011:3001"
     depends_on:
       - stockhelper-db
     restart: unless-stopped
