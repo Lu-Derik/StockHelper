@@ -37,7 +37,7 @@ export function StockSidebar() {
     e.stopPropagation()
     e.preventDefault()
     apiFetch(`/api/stocks/${code}/move`, {
-      method: 'PATCH',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ dir }),
     })

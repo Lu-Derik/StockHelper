@@ -35,7 +35,8 @@ router.get('/', async (ctx) => {
 const MoveSchema = z.object({ dir: z.enum(['up', 'down']) })
 
 // Swap a stock's sort_order with its neighbor in the given direction.
-router.patch('/:code/move', async (ctx) => {
+// Uses POST (not PATCH) for the widest client/proxy compatibility.
+router.post('/:code/move', async (ctx) => {
   const code = ctx.params.code
   const { dir } = MoveSchema.parse(ctx.request.body)
   const client = await pool.connect()
