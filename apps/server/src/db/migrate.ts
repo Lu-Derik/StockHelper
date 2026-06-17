@@ -35,6 +35,18 @@ CREATE INDEX IF NOT EXISTS idx_queries_stock_code ON queries(stock_code);
 CREATE INDEX IF NOT EXISTS idx_queries_status ON queries(status);
 CREATE INDEX IF NOT EXISTS idx_queries_created_at ON queries(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_responses_query_id ON responses(query_id);
+
+-- Sidebar ordering: lower sort_order = higher in the list.
+-- Manual up/down swaps neighbors; a fresh query bumps the stock to the top.
+ALTER TABLE stocks ADD COLUMN IF NOT EXISTS sort_order INTEGER;
+
+WITH ordered AS (
+  SELECT id, ROW_NUMBER() OVER (ORDER BY created_at, id) AS rn
+  FROM stocks WHERE sort_order IS NULL
+)
+UPDATE stocks s SET sort_order = o.rn FROM ordered o WHERE s.id = o.id;
+
+CREATE INDEX IF NOT EXISTS idx_stocks_sort_order ON stocks(sort_order);
 `
 
 async function migrate() {

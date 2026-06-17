@@ -101,10 +101,10 @@
       a. 点开 **"Add route"**:
       b. 选择 **“Published application”**
       c. 填入：
-         Subdomain:        astock-api
+         Subdomain:        stock-api
          Domain:           下拉选 unibuy.fun
          Path:             留空
-         Service URL:      http://server:3011
+         Service URL:      http://server:3001
       d. 验证：
          curl -H "X-API-Key: <你的API_SECRET>" https://api.unibuy.fun/api/stocks
 

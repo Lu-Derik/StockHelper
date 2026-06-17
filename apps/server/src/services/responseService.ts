@@ -51,17 +51,18 @@ async function autoRegisterStock(queryId: number, markdown: string) {
   if (!/^\d{6}$/.test(code)) return
   const name = extracted?.name ?? null
 
+  // A fresh query bumps the stock to the top of the sidebar.
+  const top = `(SELECT COALESCE(MIN(sort_order), 1) - 1 FROM stocks)`
   if (name) {
     await pool.query(
-      `INSERT INTO stocks (code, name, market) VALUES ($1, $2, $3)
-       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name`,
+      `INSERT INTO stocks (code, name, market, sort_order) VALUES ($1, $2, $3, ${top})
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = ${top}`,
       [code, name, marketOf(code)]
     )
   } else {
-    // No name available — insert a placeholder only if the stock is new
     await pool.query(
-      `INSERT INTO stocks (code, name, market) VALUES ($1, $2, $3)
-       ON CONFLICT (code) DO NOTHING`,
+      `INSERT INTO stocks (code, name, market, sort_order) VALUES ($1, $2, $3, ${top})
+       ON CONFLICT (code) DO UPDATE SET sort_order = ${top}`,
       [code, code, marketOf(code)]
     )
   }

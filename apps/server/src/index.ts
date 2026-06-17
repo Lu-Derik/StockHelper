@@ -29,6 +29,7 @@ app.use(cors({
     if (ALLOWED_ORIGINS.has(o) || o.startsWith('chrome-extension://')) return o
     return ''
   },
+  allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'X-API-Key'],
 }))
 app.use(bodyParser())

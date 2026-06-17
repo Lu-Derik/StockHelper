@@ -13,6 +13,20 @@ import { Badge } from '@/components/ui/badge'
 import { apiFetch } from '@/lib/api'
 
 const PENDING_KEY = 'stockhelper_pending_query'
+// Ids hidden from the 提问 history list. These only remove the entry here;
+// the underlying record stays in the DB and on the 记录 page.
+const DISMISSED_KEY = 'stockhelper_dismissed_history'
+
+function loadDismissed(): Set<number> {
+  try {
+    const raw = localStorage.getItem(DISMISSED_KEY)
+    return new Set(raw ? (JSON.parse(raw) as number[]) : [])
+  } catch { return new Set() }
+}
+
+function saveDismissed(ids: Set<number>) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]))
+}
 
 type Status = 'idle' | 'pending' | 'running' | 'completed' | 'failed'
 
@@ -82,9 +96,11 @@ export function QueryForm() {
       .then((r) => r.json())
       .then((d) => {
         if (!d.data) return
+        const dismissed = loadDismissed()
         const seen = new Set<string>()
         const deduped: HistoryItem[] = []
         for (const item of d.data as HistoryItem[]) {
+          if (dismissed.has(item.id)) continue
           const key = stripPrefix(item.question)
           if (!seen.has(key)) { seen.add(key); deduped.push(item) }
           if (deduped.length === 10) break
@@ -94,9 +110,13 @@ export function QueryForm() {
       .catch(() => {})
   }, [])
 
-  const deleteHistory = async (id: number, e: React.MouseEvent) => {
+  // Only hide the entry from this list — does NOT delete the record.
+  // Real deletion happens on the 记录 page.
+  const deleteHistory = (id: number, e: React.MouseEvent) => {
     e.stopPropagation()
-    await apiFetch(`/api/queries/${id}`, { method: 'DELETE' })
+    const dismissed = loadDismissed()
+    dismissed.add(id)
+    saveDismissed(dismissed)
     setHistory((prev) => prev.filter((h) => h.id !== id))
   }
 
