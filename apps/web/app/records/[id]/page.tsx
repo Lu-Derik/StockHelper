@@ -48,7 +48,10 @@ export default function RecordDetailPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Link href="/records" className="text-muted-foreground hover:text-foreground">
+          <Link
+            href={html.meta.stockCode ? `/records?code=${encodeURIComponent(html.meta.stockCode)}` : '/records'}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <h1 className="text-xl font-bold tracking-tight">查询详情</h1>

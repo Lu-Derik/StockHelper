@@ -19,7 +19,11 @@ export function StockSidebar() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const activeCode = searchParams.get('code') ?? ''
+  // On a record detail page (/records/[id]) there's no ?code= param; the page
+  // broadcasts its stock code so we can still highlight the matching item.
+  const [recordCode, setRecordCode] = useState('')
+  const onDetail = /^\/records\/.+/.test(pathname)
+  const activeCode = searchParams.get('code') ?? (onDetail ? recordCode : '')
 
   const load = () =>
     apiFetch(`/api/stocks`)
@@ -32,6 +36,16 @@ export function StockSidebar() {
     window.addEventListener('stocks-updated', load)
     return () => window.removeEventListener('stocks-updated', load)
   }, [])
+
+  // On a record detail page, look up that record's stock so we can highlight it.
+  useEffect(() => {
+    const m = pathname.match(/^\/records\/(\d+)/)
+    if (!m) { setRecordCode(''); return }
+    apiFetch(`/api/queries/${m[1]}`)
+      .then((r) => r.json())
+      .then((d) => setRecordCode(d.query?.stock_code ?? ''))
+      .catch(() => {})
+  }, [pathname])
 
   const move = (code: string, dir: 'up' | 'down', e: React.MouseEvent) => {
     e.stopPropagation()
@@ -64,7 +78,7 @@ export function StockSidebar() {
             const active = activeCode === s.code
             const select = () => {
               setSelectedStock({ code: s.code, name: s.name })
-              if (pathname === '/records') {
+              if (pathname.startsWith('/records')) {
                 router.push(`/records?code=${encodeURIComponent(s.code)}`)
               } else if (pathname === '/kline') {
                 router.push(`/kline?code=${encodeURIComponent(s.code)}`)

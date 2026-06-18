@@ -1,5 +1,6 @@
 import TurndownService from 'turndown'
 import { pool } from '../db/pool'
+import { lookupStockName } from './stockInfo'
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -49,7 +50,11 @@ async function autoRegisterStock(queryId: number, markdown: string) {
 
   const code = providedCode ?? extracted!.code
   if (!/^\d{6}$/.test(code)) return
-  const name = extracted?.name ?? null
+
+  // Prefer the authoritative name looked up by code (tushare); fall back to the
+  // name parsed from the response text only if the lookup fails. The regex can't
+  // reliably tell where a 2–4 char Chinese name begins (e.g. "于芯源微" vs "芯源微").
+  const name = (await lookupStockName(code)) ?? extracted?.name ?? null
 
   // A fresh query bumps the stock to the top of the sidebar.
   const top = `(SELECT COALESCE(MIN(sort_order), 1) - 1 FROM stocks)`
@@ -77,15 +82,18 @@ export async function saveResponse(queryId: number, rawHtml: string) {
     [queryId, rawHtml, markdown]
   )
 
-  await pool.query(
-    `UPDATE queries SET status = 'completed', completed_at = NOW() WHERE id = $1`,
-    [queryId]
-  )
-
-  // Best-effort: keep the sidebar's stock list in sync (non-fatal)
+  // Register the stock BEFORE marking the query completed. The frontend reloads
+  // the sidebar as soon as it sees 'completed', so the stock must already exist
+  // to avoid a race where the reload happens before registration (this only bit
+  // the code-only case, since name-provided queries pre-register on submit).
   try {
     await autoRegisterStock(queryId, markdown)
   } catch {
     /* extraction is optional */
   }
+
+  await pool.query(
+    `UPDATE queries SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+    [queryId]
+  )
 }
