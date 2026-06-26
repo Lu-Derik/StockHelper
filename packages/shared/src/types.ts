@@ -7,6 +7,7 @@ export interface Stock {
   code: string        // e.g. "600519"
   name: string        // e.g. "贵州茅台"
   market: 'SH' | 'SZ' // 沪市/深市
+  concept: string     // 概念板块 tag (user-editable)
   createdAt: Date
 }
 

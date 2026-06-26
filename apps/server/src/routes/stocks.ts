@@ -34,6 +34,24 @@ router.get('/', async (ctx) => {
 
 const MoveSchema = z.object({ dir: z.enum(['up', 'down']) })
 
+const ConceptSchema = z.object({ concept: z.string().max(100) })
+
+// Update a stock's concept sector tag.
+router.patch('/:code/concept', async (ctx) => {
+  const code = ctx.params.code
+  const { concept } = ConceptSchema.parse(ctx.request.body)
+  const { rows } = await pool.query(
+    `UPDATE stocks SET concept = $1 WHERE code = $2 RETURNING *`,
+    [concept, code]
+  )
+  if (rows.length === 0) {
+    ctx.status = 404
+    ctx.body = { error: 'not found' }
+    return
+  }
+  ctx.body = { success: true, stock: rows[0] }
+})
+
 // Swap a stock's sort_order with its neighbor in the given direction.
 // Uses POST (not PATCH) for the widest client/proxy compatibility.
 router.post('/:code/move', async (ctx) => {

@@ -51,24 +51,31 @@ async function autoRegisterStock(queryId: number, markdown: string) {
   const code = providedCode ?? extracted!.code
   if (!/^\d{6}$/.test(code)) return
 
-  // Prefer the authoritative name looked up by code (tushare); fall back to the
-  // name parsed from the response text only if the lookup fails. The regex can't
-  // reliably tell where a 2–4 char Chinese name begins (e.g. "于芯源微" vs "芯源微").
-  const name = (await lookupStockName(code)) ?? extracted?.name ?? null
+  // tushare is the authoritative source; regex-extracted name is an untrusted
+  // fallback (AI responses can mention a wrong name next to a code).
+  const authName = await lookupStockName(code)  // null when rate-limited / offline
+  const fallbackName = extracted?.name ?? null
 
   // A fresh query bumps the stock to the top of the sidebar.
   const top = `(SELECT COALESCE(MIN(sort_order), 1) - 1 FROM stocks)`
-  if (name) {
+
+  if (authName) {
+    // We have a verified name — always write it, correcting any prior wrong value.
     await pool.query(
       `INSERT INTO stocks (code, name, market, sort_order) VALUES ($1, $2, $3, ${top})
        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, sort_order = ${top}`,
-      [code, name, marketOf(code)]
+      [code, authName, marketOf(code)]
     )
   } else {
+    // tushare unavailable: only set name on first INSERT (stock not yet in DB).
+    // On conflict keep the existing DB name — it may already be correct from a
+    // previous successful tushare lookup; overwriting with an AI-extracted name
+    // risks introducing errors like "于芯源微" instead of "芯源微".
+    const insertName = fallbackName ?? code
     await pool.query(
       `INSERT INTO stocks (code, name, market, sort_order) VALUES ($1, $2, $3, ${top})
        ON CONFLICT (code) DO UPDATE SET sort_order = ${top}`,
-      [code, code, marketOf(code)]
+      [code, insertName, marketOf(code)]
     )
   }
 }

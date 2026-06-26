@@ -46,6 +46,9 @@ WITH ordered AS (
 )
 UPDATE stocks s SET sort_order = o.rn FROM ordered o WHERE s.id = o.id;
 
+-- Concept sector tag (manually set by user).
+ALTER TABLE stocks ADD COLUMN IF NOT EXISTS concept VARCHAR(100) DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_stocks_sort_order ON stocks(sort_order);
 `
 
