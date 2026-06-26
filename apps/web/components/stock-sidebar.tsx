@@ -12,6 +12,7 @@ interface Stock {
   code: string
   name: string
   market: string
+  concept: string
 }
 
 export function StockSidebar() {
@@ -104,6 +105,11 @@ export function StockSidebar() {
                   <span className={`block text-xs font-mono mt-0.5 ${active ? 'text-primary/70' : 'text-muted-foreground'}`}>
                     {s.code}
                   </span>
+                  {s.concept && (
+                    <span className={`block text-[10px] mt-0.5 truncate ${active ? 'text-primary/50' : 'text-muted-foreground/60'}`}>
+                      {s.concept}
+                    </span>
+                  )}
                 </div>
                 {/* Reorder controls (shown on row hover) */}
                 <div className="flex flex-col shrink-0 -my-1 opacity-0 group-hover:opacity-100 transition-opacity">
