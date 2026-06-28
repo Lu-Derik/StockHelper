@@ -6,6 +6,7 @@ import { TrendingUp, ChevronUp, ChevronDown, List, Tag } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api'
 import { setSelectedStock } from '@/lib/selected-stock'
+import { parseTags } from '@/lib/tags'
 
 interface Stock {
   id: number
@@ -85,12 +86,15 @@ export function StockSidebar() {
     }
   }
 
-  // Build concept groups (preserving order within each group)
+  // Build tag groups: a stock with multiple tags appears in each tag's group.
   const conceptGroups: Map<string, Stock[]> = new Map()
   for (const s of stocks) {
-    const key = s.concept?.trim() || UNCATEGORIZED
-    if (!conceptGroups.has(key)) conceptGroups.set(key, [])
-    conceptGroups.get(key)!.push(s)
+    const tags = parseTags(s.concept)
+    const keys = tags.length > 0 ? tags : [UNCATEGORIZED]
+    for (const key of keys) {
+      if (!conceptGroups.has(key)) conceptGroups.set(key, [])
+      conceptGroups.get(key)!.push(s)
+    }
   }
   // Move UNCATEGORIZED to the end
   if (conceptGroups.has(UNCATEGORIZED)) {
@@ -163,9 +167,9 @@ export function StockSidebar() {
                     <span className={`block text-xs font-mono mt-0.5 ${active ? 'text-primary/70' : 'text-muted-foreground'}`}>
                       {s.code}
                     </span>
-                    {s.concept && (
+                    {parseTags(s.concept).length > 0 && (
                       <span className={`block text-[10px] mt-0.5 truncate ${active ? 'text-primary/50' : 'text-muted-foreground/60'}`}>
-                        {s.concept}
+                        {parseTags(s.concept).join(' · ')}
                       </span>
                     )}
                   </div>

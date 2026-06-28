@@ -11,6 +11,7 @@ import { Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api'
 import { setSelectedStock } from '@/lib/selected-stock'
+import { parseTags, normaliseTags } from '@/lib/tags'
 
 interface Stock {
   id: number
@@ -56,7 +57,7 @@ function StocksContent() {
 
   const startEditConcept = (stock: Stock) => {
     setEditingCode(stock.code)
-    setEditValue(stock.concept ?? '')
+    setEditValue(parseTags(stock.concept).join(' '))
   }
 
   const cancelEditConcept = () => {
@@ -77,7 +78,7 @@ function StocksContent() {
     await apiFetch(`/api/stocks/${stockCode}/concept`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ concept: editValue.trim() }),
+      body: JSON.stringify({ concept: normaliseTags(editValue) }),
     })
     setEditingCode(null)
     setEditValue('')
@@ -176,25 +177,26 @@ function StocksContent() {
                   </>
                 ) : (
                   <>
-                    {s.concept ? (
-                      <Badge
-                        variant="outline"
-                        className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50"
-                        onClick={() => startEditConcept(s)}
-                      >
-                        {s.concept}
-                      </Badge>
-                    ) : (
-                      <span
-                        className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground italic"
-                        onClick={() => startEditConcept(s)}
-                      >
-                        + 设置概念板块
-                      </span>
-                    )}
+                    <div className="flex flex-wrap gap-1 flex-1 min-w-0" onClick={() => startEditConcept(s)}>
+                      {parseTags(s.concept).length > 0 ? (
+                        parseTags(s.concept).map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="outline"
+                            className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                          >
+                            {tag}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground/60 cursor-pointer hover:text-muted-foreground italic">
+                          + 设置概念板块
+                        </span>
+                      )}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => startEditConcept(s)}
+                      onClick={(e) => { e.stopPropagation(); startEditConcept(s) }}
                       className="p-0.5 rounded hover:bg-accent text-muted-foreground/40 hover:text-muted-foreground shrink-0 ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
                       title="编辑概念板块"
                     >
