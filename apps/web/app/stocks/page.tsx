@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Check, X } from 'lucide-react'
+import { Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api'
 import { setSelectedStock } from '@/lib/selected-stock'
@@ -64,6 +64,15 @@ function StocksContent() {
     setEditValue('')
   }
 
+  const handleDelete = async (stockCode: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm(`确定删除 ${stockCode} 及其所有查询记录？`)) return
+    await apiFetch(`/api/stocks/${stockCode}`, { method: 'DELETE' })
+    window.dispatchEvent(new CustomEvent('stocks-updated'))
+    if (activeCode === stockCode) router.push('/stocks', { scroll: false })
+    await load()
+  }
+
   const saveConcept = async (stockCode: string) => {
     await apiFetch(`/api/stocks/${stockCode}/concept`, {
       method: 'PATCH',
@@ -112,7 +121,7 @@ function StocksContent() {
         {stocks.map((s) => (
           <Card
             key={s.id}
-            className={`transition-colors cursor-pointer ${activeCode === s.code ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'}`}
+            className={`group transition-colors cursor-pointer ${activeCode === s.code ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'}`}
             onClick={() => {
               setSelectedStock({ code: s.code, name: s.name })
               router.push(`/stocks?code=${encodeURIComponent(s.code)}`, { scroll: false })
@@ -123,6 +132,14 @@ function StocksContent() {
                 <Badge variant="outline" className="font-mono text-xs">{s.code}</Badge>
                 <span className="text-sm font-medium truncate flex-1">{s.name}</span>
                 <Badge variant="secondary" className="text-xs">{s.market}</Badge>
+                <button
+                  type="button"
+                  onClick={(e) => handleDelete(s.code, e)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/15 text-muted-foreground/40 hover:text-destructive shrink-0"
+                  title="删除"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
               {/* Concept tag row */}
               <div className="mt-2 flex items-center gap-1.5">

@@ -96,4 +96,18 @@ router.post('/:code/move', async (ctx) => {
   }
 })
 
+// Delete a stock and all its associated queries + responses.
+router.delete('/:code', async (ctx) => {
+  const { code } = ctx.params
+  await pool.query(
+    `DELETE FROM responses WHERE query_id IN (
+       SELECT id FROM queries WHERE stock_code = $1
+     )`,
+    [code]
+  )
+  await pool.query(`DELETE FROM queries WHERE stock_code = $1`, [code])
+  await pool.query(`DELETE FROM stocks WHERE code = $1`, [code])
+  ctx.body = { success: true }
+})
+
 export default router
