@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -21,7 +21,7 @@ interface Stock {
   created_at: string
 }
 
-export default function StocksPage() {
+function StocksContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const activeCode = searchParams.get('code') ?? ''
@@ -191,5 +191,13 @@ export default function StocksPage() {
         ))}
       </div>
     </div>
+  )
+}
+
+export default function StocksPage() {
+  return (
+    <Suspense>
+      <StocksContent />
+    </Suspense>
   )
 }
