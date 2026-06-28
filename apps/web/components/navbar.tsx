@@ -14,7 +14,7 @@ const navItems = [
   { href: '/', label: '提问', icon: MessageSquare, carriesStock: true },
   { href: '/kline', label: 'K线', icon: CandlestickChart, carriesStock: true },
   { href: '/records', label: '记录', icon: BookOpen, carriesStock: true },
-  { href: '/stocks', label: '股票', icon: BarChart2, carriesStock: false },
+  { href: '/stocks', label: '股票', icon: BarChart2, carriesStock: true },
 ]
 
 export function Navbar() {
