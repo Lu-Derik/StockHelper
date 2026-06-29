@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { TrendingUp, ChevronUp, ChevronDown, List, Tag } from 'lucide-react'
 
@@ -30,6 +30,11 @@ export function StockSidebar() {
   const [recordCode, setRecordCode] = useState('')
   const onDetail = /^\/records\/.+/.test(pathname)
   const activeCode = searchParams.get('code') ?? (onDetail ? recordCode : '')
+  const activeItemRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [activeCode])
 
   const load = () =>
     apiFetch(`/api/stocks`)
@@ -152,6 +157,7 @@ export function StockSidebar() {
               return (
                 <div
                   key={s.id}
+                  ref={active ? activeItemRef : undefined}
                   role="button"
                   tabIndex={0}
                   onClick={() => selectStock(s)}
@@ -241,6 +247,7 @@ export function StockSidebar() {
                         return (
                           <div
                             key={s.id}
+                            ref={active ? activeItemRef : undefined}
                             role="button"
                             tabIndex={0}
                             onClick={() => selectStock(s)}
