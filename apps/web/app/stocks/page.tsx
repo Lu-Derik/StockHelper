@@ -83,6 +83,7 @@ function StocksContent() {
     setEditingCode(null)
     setEditValue('')
     await load()
+    window.dispatchEvent(new CustomEvent('stocks-updated'))
   }
 
   return (
