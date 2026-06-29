@@ -122,7 +122,7 @@ function StocksContent() {
         {stocks.map((s) => (
           <Card
             key={s.id}
-            className={`group transition-colors cursor-pointer ${activeCode === s.code ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'}`}
+            className={`group transition-colors cursor-pointer ${activeCode === s.code ? 'border-primary border-2 bg-primary/15 shadow-sm' : 'hover:bg-accent/50'}`}
             onClick={() => {
               setSelectedStock({ code: s.code, name: s.name })
               router.push(`/stocks?code=${encodeURIComponent(s.code)}`, { scroll: false })
