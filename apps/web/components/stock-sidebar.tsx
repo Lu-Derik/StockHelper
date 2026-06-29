@@ -163,10 +163,12 @@ export function StockSidebar() {
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <span className="block truncate">{s.name}</span>
-                    <span className={`block text-xs font-mono mt-0.5 ${active ? 'text-primary/70' : 'text-muted-foreground'}`}>
-                      {s.code}
-                    </span>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="truncate">{s.name}</span>
+                      <span className={`text-xs font-mono shrink-0 ${active ? 'text-primary/70' : 'text-muted-foreground'}`}>
+                        {s.code}
+                      </span>
+                    </div>
                     {parseTags(s.concept).length > 0 && (
                       <span className={`block text-[10px] mt-0.5 truncate ${active ? 'text-primary/50' : 'text-muted-foreground/60'}`}>
                         {parseTags(s.concept).join(' · ')}
