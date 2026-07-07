@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Pencil, Check, X, Trash2 } from 'lucide-react'
+import { Search, Pencil, Check, X, Trash2 } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api'
 import { setSelectedStock } from '@/lib/selected-stock'
@@ -28,31 +28,53 @@ function StocksContent() {
   const activeCode = searchParams.get('code') ?? ''
 
   const [stocks, setStocks] = useState<Stock[]>([])
-  const [code, setCode] = useState('')
-  const [name, setName] = useState('')
-  const [market, setMarket] = useState<'SH' | 'SZ'>('SH')
-  const [saving, setSaving] = useState(false)
+  const [searchCode, setSearchCode] = useState('')
+  const [searchName, setSearchName] = useState('')
+  const [filtered, setFiltered] = useState<Stock[] | null>(null) // null = show all
+  const [notFound, setNotFound] = useState(false)
 
   // Inline concept editing state
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
 
   const load = () =>
-    apiFetch(`/api/stocks`).then((r) => r.json()).then((d) => setStocks(d.data ?? []))
+    apiFetch(`/api/stocks`).then((r) => r.json()).then((d) => {
+      setStocks(d.data ?? [])
+      // re-apply current filter after reload
+      setFiltered(null)
+      setNotFound(false)
+    })
 
   useEffect(() => { load() }, [])
 
-  const handleAdd = async (e: React.FormEvent) => {
+  const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
-    await apiFetch(`/api/stocks`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, name, market }),
+    const codeQ = searchCode.trim()
+    const nameQ = searchName.trim()
+    if (!codeQ && !nameQ) { setFiltered(null); setNotFound(false); return }
+    const results = stocks.filter((s) => {
+      const matchCode = codeQ ? s.code.includes(codeQ) : true
+      const matchName = nameQ ? s.name.includes(nameQ) : true
+      return matchCode && matchName
     })
-    setCode(''); setName('')
-    await load()
-    setSaving(false)
+    if (results.length === 0) {
+      setFiltered([])
+      setNotFound(true)
+    } else {
+      setFiltered(results)
+      setNotFound(false)
+      // auto-select first match
+      const first = results[0]
+      setSelectedStock({ code: first.code, name: first.name })
+      router.push(`/stocks?code=${encodeURIComponent(first.code)}`, { scroll: false })
+    }
+  }
+
+  const clearSearch = () => {
+    setSearchCode('')
+    setSearchName('')
+    setFiltered(null)
+    setNotFound(false)
   }
 
   const startEditConcept = (stock: Stock) => {
@@ -86,41 +108,59 @@ function StocksContent() {
     window.dispatchEvent(new CustomEvent('stocks-updated'))
   }
 
+  const displayStocks = filtered ?? stocks
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">股票管理</h1>
 
       <Card>
         <CardContent className="p-4">
-          <form onSubmit={handleAdd} className="flex flex-wrap items-end gap-3">
+          <form onSubmit={handleSearch} className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
-              <Label htmlFor="code">代码</Label>
-              <Input id="code" value={code} onChange={(e) => setCode(e.target.value)}
-                placeholder="600519" maxLength={6} className="w-28" required pattern="\d{6}" />
+              <Label htmlFor="searchCode">股票代码</Label>
+              <Input
+                id="searchCode"
+                value={searchCode}
+                onChange={(e) => setSearchCode(e.target.value)}
+                placeholder="如：600519"
+                maxLength={6}
+                className="w-28"
+              />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="name">名称</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="贵州茅台" className="w-36" required />
+              <Label htmlFor="searchName">股票名称</Label>
+              <Input
+                id="searchName"
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                placeholder="如：贵州茅台"
+                className="w-36"
+              />
             </div>
-            <div className="space-y-1">
-              <Label>市场</Label>
-              <div className="flex gap-1">
-                {(['SH', 'SZ'] as const).map((m) => (
-                  <Button key={m} type="button" size="sm" variant={market === m ? 'default' : 'outline'}
-                    onClick={() => setMarket(m)}>{m}</Button>
-                ))}
-              </div>
-            </div>
-            <Button type="submit" disabled={saving} className="gap-1.5">
-              <Plus className="h-4 w-4" />添加
+            <Button type="submit" className="gap-1.5">
+              <Search className="h-4 w-4" />查找
             </Button>
+            {filtered !== null && (
+              <Button type="button" variant="outline" onClick={clearSearch}>
+                显示全部
+              </Button>
+            )}
           </form>
+
+          {notFound && (
+            <p className="mt-3 text-sm text-destructive">找不到符合条件的股票</p>
+          )}
+          {filtered !== null && !notFound && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              找到 {filtered.length} 只股票
+            </p>
+          )}
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-        {stocks.map((s) => (
+        {displayStocks.map((s) => (
           <Card
             key={s.id}
             className={`group transition-colors cursor-pointer ${activeCode === s.code ? 'border-primary border-2 bg-primary/15 shadow-sm' : 'hover:bg-accent/50'}`}
