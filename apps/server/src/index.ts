@@ -7,6 +7,7 @@ import queriesRouter from './routes/queries'
 import stocksRouter from './routes/stocks'
 import linkPreviewRouter from './routes/linkPreview'
 import klineRouter from './routes/kline'
+import { isAllowedOrigin } from './lib/origins'
 
 const app = new Koa()
 const PORT = parseInt(process.env.PORT ?? '3001')
@@ -26,7 +27,7 @@ const isLocalHost = (host: string) => /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(h
 app.use(cors({
   origin: (ctx) => {
     const o = ctx.get('origin')
-    if (ALLOWED_ORIGINS.has(o) || o.startsWith('chrome-extension://')) return o
+    if (isAllowedOrigin(o, ALLOWED_ORIGINS)) return o
     return ''
   },
   allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

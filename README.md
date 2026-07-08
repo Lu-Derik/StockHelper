@@ -64,6 +64,36 @@ npm run dev
 
 The Koa server starts on **http://localhost:3001** and the WebSocket server on **ws://localhost:3002**.
 
+### 4.1 Re-deploy the backend server (local Docker)
+
+If the backend code or Docker image changed, rebuild and restart the server container from the project root:
+
+```bash
+# From the project root
+docker compose --env-file apps/server/.env up -d --build server
+```
+
+Verify the service is running:
+
+```bash
+docker compose ps
+docker compose logs -f server
+curl http://localhost:3011/health
+```
+
+If you changed the database schema, run the migration again:
+
+```bash
+cd apps/server
+npm run migrate
+```
+
+If you want to rebuild both the database and the server containers together:
+
+```bash
+docker compose --env-file apps/server/.env up -d --build stockhelper-db server
+```
+
 ### 5. Start the frontend
 
 ```bash
