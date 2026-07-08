@@ -212,12 +212,17 @@ async function dispatchQuery({ id, question, provider }) {
     stockhelper_pending: { queryId: id, question, provider }
   })
 
-  // Find or open DeepSeek tab
+  // Prefer the active DeepSeek tab in the current window; otherwise reuse the
+  // most relevant existing tab; only create a new tab as a last resort.
   const tabs = await chrome.tabs.query({ url: url + '*' })
   let tab
 
-  if (tabs.length > 0) {
-    tab = tabs[0]
+  const activeTab = tabs.find((t) => t.active)
+  const currentWindowTab = tabs.find((t) => t.windowId === chrome.windows.WINDOW_ID_CURRENT)
+  const preferredTab = activeTab || currentWindowTab || tabs[0]
+
+  if (preferredTab) {
+    tab = preferredTab
     await chrome.tabs.update(tab.id, { active: true })
     await sleep(500)
   } else {
