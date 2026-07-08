@@ -111,7 +111,7 @@ export function StockSidebar() {
   if (stocks.length === 0) return null
 
   return (
-    <aside className="w-44 shrink-0 sticky top-20 self-start">
+    <aside className="w-60 min-w-[15rem] shrink-0 sticky top-20 self-start">
       <div className="rounded-xl border bg-card card-shadow overflow-hidden">
         {/* Header with view toggle */}
         <div className="flex items-center gap-1.5 px-3 py-2.5 border-b bg-muted/40">
