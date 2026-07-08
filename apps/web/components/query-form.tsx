@@ -12,7 +12,10 @@ import { Badge } from '@/components/ui/badge'
 
 import { apiFetch } from '@/lib/api'
 
+const EXTENSION_MESSAGE_TYPE = 'run_query'
+
 const PENDING_KEY = 'stockhelper_pending_query'
+const EXECUTION_MODE_KEY = 'stockhelper_execution_mode'
 // Ids hidden from the 提问 history list. These only remove the entry here;
 // the underlying record stays in the DB and on the 记录 page.
 const DISMISSED_KEY = 'stockhelper_dismissed_history'
@@ -63,6 +66,17 @@ function loadPending(): PendingQuery | null {
   } catch { return null }
 }
 
+function loadExecutionMode(): 'app' | 'backend' {
+  try {
+    const raw = localStorage.getItem(EXECUTION_MODE_KEY)
+    return raw === 'backend' ? 'backend' : 'app'
+  } catch { return 'app' }
+}
+
+function saveExecutionMode(mode: 'app' | 'backend') {
+  localStorage.setItem(EXECUTION_MODE_KEY, mode)
+}
+
 export function QueryForm() {
   const searchParams = useSearchParams()
   const [question, setQuestion] = useState(searchParams.get('code') ? '' : '')
@@ -70,6 +84,7 @@ export function QueryForm() {
   const [stockName, setStockName] = useState(searchParams.get('name') ?? '')
   const [status, setStatus] = useState<Status>('idle')
   const [queryId, setQueryId] = useState<number | null>(null)
+  const [executionMode, setExecutionMode] = useState<'app' | 'backend'>(loadExecutionMode)
   const [error, setError] = useState('')
   const [history, setHistory] = useState<HistoryItem[]>([])
 
@@ -140,6 +155,21 @@ export function QueryForm() {
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
+
+      if (executionMode === 'app') {
+        try {
+          const runtime = (globalThis as unknown as {
+            chrome?: { runtime?: { sendMessage?: (message: unknown) => Promise<unknown> } }
+          }).chrome?.runtime
+          const sendMessage = runtime?.sendMessage
+          if (sendMessage) {
+            await sendMessage({
+              type: EXTENSION_MESSAGE_TYPE,
+              payload: { queryId: data.query.id, question: finalQuestion, provider: 'deepseek' },
+            })
+          }
+        } catch {}
+      }
 
       if (stockCode.trim() && stockName.trim()) {
         apiFetch(`/api/stocks`, {
@@ -220,6 +250,23 @@ export function QueryForm() {
 
             {/* Stock code / name / send button — all on one row */}
             <div className="flex gap-3 items-end">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="executionMode" className="text-sm font-medium">执行模式</Label>
+                <select
+                  id="executionMode"
+                  value={executionMode}
+                  onChange={(e) => {
+                    const nextMode = e.target.value as 'app' | 'backend'
+                    setExecutionMode(nextMode)
+                    saveExecutionMode(nextMode)
+                  }}
+                  disabled={isBusy}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="app">App → 扩展 → DeepSeek</option>
+                  <option value="backend">后台 → 扩展 → DeepSeek</option>
+                </select>
+              </div>
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="stockCode" className="text-sm font-medium">股票代码（可选）</Label>
                 <Input

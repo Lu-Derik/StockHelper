@@ -1,13 +1,45 @@
 // StockHelper Bridge — poll-based, MV3-safe
-const SERVER = 'http://localhost:3011'
+const DEFAULT_SERVER = 'http://localhost:3011'
 const VERSION = 'v7-sibling-toolbar'
 let dispatchBusy = false
 let captureState = null  // { tabId, queryId, startedAt }
+let extensionConfig = { server: DEFAULT_SERVER, apiKey: '', mode: 'app' }
+let configLoaded = false
+
+function normalizeServer(value) {
+  const raw = (value || DEFAULT_SERVER).trim()
+  if (!raw) return DEFAULT_SERVER
+  return raw.replace(/\/$/, '')
+}
+
+async function ensureConfigLoaded() {
+  if (configLoaded) return extensionConfig
+  const data = await chrome.storage.local.get(['stockhelper_server', 'stockhelper_api_key', 'stockhelper_mode'])
+  extensionConfig = {
+    server: normalizeServer(data.stockhelper_server || DEFAULT_SERVER),
+    apiKey: data.stockhelper_api_key || '',
+    mode: data.stockhelper_mode || 'app',
+  }
+  configLoaded = true
+  return extensionConfig
+}
+
+async function apiFetch(path, init = {}) {
+  const cfg = await ensureConfigLoaded()
+  const headers = new Headers(init.headers || {})
+  if (init.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+  if (cfg.apiKey) {
+    headers.set('X-API-Key', cfg.apiKey)
+  }
+  return fetch(`${cfg.server}${path}`, { ...init, headers })
+}
 
 // Remote debug log (server console access workaround)
 function rlog(message) {
   console.log('[StockHelper]', message)
-  fetch(`${SERVER}/api/queries/ext/log`, {
+  apiFetch('/api/queries/ext/log', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ version: VERSION, message }),
@@ -20,7 +52,7 @@ chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONT
 // ── On startup: reset any queries stuck in 'running' ─────────────────────────
 async function resetStuckQueries() {
   try {
-    await fetch(`${SERVER}/api/queries/reset-running`, { method: 'POST' })
+    await apiFetch('/api/queries/reset-running', { method: 'POST' })
   } catch {}
 }
 
@@ -49,6 +81,20 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'ping') {
     sendResponse({ ok: true })
+    return true
+  }
+
+  if (msg.type === 'run_query') {
+    const { queryId, question, provider } = msg.payload || {}
+    if (!queryId || !question) {
+      sendResponse({ ok: false, error: 'invalid payload' })
+      return true
+    }
+    dispatchBusy = true
+    updateBadge('...', '#f59e0b')
+    dispatchQuery({ id: queryId, question, provider: provider || 'deepseek' }, { source: 'app' })
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: err?.message || 'failed' }))
     return true
   }
 
@@ -172,7 +218,7 @@ async function checkCapture() {
 
 async function saveAndFinish(queryId, html) {
   try {
-    const res = await fetch(`${SERVER}/api/queries/${queryId}/callback`, {
+    const res = await apiFetch(`/api/queries/${queryId}/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ html }),
@@ -190,7 +236,7 @@ async function saveAndFinish(queryId, html) {
 // ── Poll server for pending queries ──────────────────────────────────────────
 async function pollAndDispatch() {
   try {
-    const res = await fetch(`${SERVER}/api/queries/claim`, { method: 'POST' })
+    const res = await apiFetch('/api/queries/claim', { method: 'POST' })
     const data = await res.json()
     const query = data.query
     if (!query) return
@@ -203,13 +249,15 @@ async function pollAndDispatch() {
   }
 }
 
-async function dispatchQuery({ id, question, provider }) {
+async function dispatchQuery({ id, question, provider }, options = {}) {
+  const cfg = await ensureConfigLoaded()
+  const mode = options.source === 'app' ? 'app' : (cfg.mode || 'app')
   const providerUrls = { deepseek: 'https://chat.deepseek.com/' }
   const url = providerUrls[provider]
   if (!url) { dispatchBusy = false; return }
 
   await chrome.storage.session.set({
-    stockhelper_pending: { queryId: id, question, provider }
+    stockhelper_pending: { queryId: id, question, provider, mode }
   })
 
   // Force the extension to operate on the currently visible DeepSeek tab.
@@ -322,7 +370,7 @@ async function dispatchQuery({ id, question, provider }) {
   }
 
   const result = submitResult?.[0]?.result
-  rlog(`dispatched query=${id} tab=${tab.id} submit=${JSON.stringify(result)}`)
+  rlog(`dispatched query=${id} tab=${tab.id} mode=${mode} submit=${JSON.stringify(result)}`)
 }
 
 function waitForTabComplete(tabId) {
