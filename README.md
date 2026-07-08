@@ -73,12 +73,63 @@ npm run dev
 
 The Next.js app starts on **http://localhost:3000**.
 
-### 6. Load the Chrome extension
+### 6. Load the browser extension
 
-1. Open Chrome and go to `chrome://extensions`
+The extension is built on Chrome's Manifest V3 API. It works natively in all Chromium-based browsers and can be converted for Safari with moderate effort.
+
+#### Google Chrome
+
+1. Go to `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked**
-4. Select the `apps/extension/` directory
+3. Click **Load unpacked** → select `apps/extension/`
+
+#### Microsoft Edge
+
+1. Go to `edge://extensions`
+2. Enable **Developer mode** (bottom-left toggle)
+3. Click **Load unpacked** → select `apps/extension/`
+
+#### Opera
+
+1. Go to `opera://extensions`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** → select `apps/extension/`
+
+#### Brave
+
+1. Go to `brave://extensions`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** → select `apps/extension/`
+
+#### Vivaldi
+
+1. Go to `vivaldi://extensions`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** → select `apps/extension/`
+
+#### Firefox ❌ Not supported
+
+Firefox does not support `chrome.offscreen` (Offscreen Document API) or `chrome.storage.session`, both of which this extension depends on. Supporting Firefox would require a significant rewrite of the background polling logic.
+
+#### Safari ⚠️ Requires conversion (medium effort)
+
+Safari supports Manifest V3 extensions since Safari 15.4, but two APIs need to be replaced before conversion:
+
+| Current API | Replacement |
+|---|---|
+| `chrome.offscreen` | `chrome.alarms` for periodic polling |
+| `chrome.storage.session` | `chrome.storage.local` |
+
+Once those are fixed (~1–2 days of work), Apple provides an automated converter:
+
+```bash
+# Requires Xcode on macOS
+xcrun safari-web-extension-converter apps/extension/ --project-location ./safari-extension
+```
+
+This generates an Xcode project you can build and sideload on your Mac (no Apple Developer account needed for local use). Distributing via the App Store requires a paid Apple Developer account ($99/year).
+
+---
 
 The extension icon appears in the toolbar. Click it to check the connection status — it should show **"已连接到 StockHelper"** once the backend is running.
 
