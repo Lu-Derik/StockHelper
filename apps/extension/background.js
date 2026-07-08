@@ -77,6 +77,30 @@ chrome.runtime.onStartup.addListener(() => {
   resetStuckQueries()
 })
 
+// ── Persist/restore captureState across service-worker restarts ──────────────
+const CAPTURE_STATE_KEY = 'stockhelper_capture_state'
+
+async function saveCaptureState(state) {
+  if (state) {
+    await chrome.storage.session.set({ [CAPTURE_STATE_KEY]: state }).catch(() => {})
+  } else {
+    await chrome.storage.session.remove(CAPTURE_STATE_KEY).catch(() => {})
+  }
+}
+
+async function restoreCaptureState() {
+  if (captureState) return  // already in memory
+  try {
+    const data = await chrome.storage.session.get(CAPTURE_STATE_KEY)
+    const saved = data?.[CAPTURE_STATE_KEY]
+    if (saved?.tabId && saved?.queryId) {
+      captureState = saved
+      dispatchBusy = true
+      rlog(`restored captureState query=${saved.queryId} tab=${saved.tabId}`)
+    }
+  } catch {}
+}
+
 // ── Handle poll ticks from offscreen document ─────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === 'ping') {
@@ -99,11 +123,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'poll_tick') {
-    if (captureState) {
-      checkCapture()
-    } else if (!dispatchBusy) {
-      pollAndDispatch()
-    }
+    restoreCaptureState().then(() => {
+      if (captureState) {
+        checkCapture()
+      } else if (!dispatchBusy) {
+        pollAndDispatch()
+      }
+    })
     return
   }
 
@@ -112,6 +138,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (captureState) {
       saveAndFinish(captureState.queryId, msg.html)
       captureState = null
+      saveCaptureState(null)
     }
     sendResponse({ ok: true })
     return true
@@ -121,6 +148,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     captureState = null
     dispatchBusy = false
     chrome.storage.session.remove('stockhelper_pending')
+    saveCaptureState(null)
     updateBadge('ON', '#22c55e')
   }
 })
@@ -136,6 +164,7 @@ async function checkCapture() {
     captureState = null
     dispatchBusy = false
     chrome.storage.session.remove('stockhelper_pending')
+    saveCaptureState(null)
     updateBadge('ERR', '#ef4444')
     return
   }
@@ -149,6 +178,7 @@ async function checkCapture() {
     captureState = null
     dispatchBusy = false
     chrome.storage.session.remove('stockhelper_pending')
+    saveCaptureState(null)
     updateBadge('ON', '#22c55e')
     return
   }
@@ -186,15 +216,18 @@ async function checkCapture() {
 
     // Stability detection: done when content stops growing for 5 consecutive
     // checks (~15s). DOM-agnostic — does not depend on DeepSeek's button markup.
+    // Use len > 0 so short responses (< 500 chars) can also complete.
     if (result.len > captureState.lastLen) {
       captureState.lastLen = result.len
       captureState.stable = 0
-    } else if (result.len >= 500) {
+    } else if (result.len > 0) {
       captureState.stable++
     }
+    await saveCaptureState(captureState)
 
-    // Done when the action toolbar appeared after the message, or content went stable
-    const toolbarDone = result.len >= 500 && result.tailIcons >= 4
+    // Done when the action toolbar appeared after the message, or content went stable.
+    // Lower tailIcons threshold to 1 — DeepSeek may show fewer icons than before.
+    const toolbarDone = result.len > 0 && result.tailIcons >= 1
     rlog(`check query=${queryId} len=${result.len} stable=${captureState.stable}/5 tailIcons=${result.tailIcons} sibs=[${result.sibTags}]`)
 
     if (toolbarDone || captureState.stable >= 5) {
@@ -209,6 +242,7 @@ async function checkCapture() {
       })
       const html = htmlResults?.[0]?.result ?? ''
       captureState = null
+      saveCaptureState(null)
       await saveAndFinish(queryId, html)
     }
   } catch (e) {
@@ -301,6 +335,7 @@ async function dispatchQuery({ id, question, provider }, options = {}) {
 
   // Record the tab so background can poll it for the response
   captureState = { tabId: tab.id, queryId: id, startedAt: Date.now(), lastLen: 0, stable: 0 }
+  await saveCaptureState(captureState)
 
   rlog(`dispatching query=${id} tab=${tab.id} url=${tab.url || ''} title=${tab.title || ''} active=${tab.active}`)
 
