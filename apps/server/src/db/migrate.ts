@@ -10,16 +10,20 @@ CREATE TABLE IF NOT EXISTS stocks (
 );
 
 CREATE TABLE IF NOT EXISTS queries (
-  id           SERIAL PRIMARY KEY,
-  stock_id     INTEGER REFERENCES stocks(id) ON DELETE SET NULL,
-  stock_code   VARCHAR(10),
-  question     TEXT NOT NULL,
-  provider     VARCHAR(20) NOT NULL DEFAULT 'deepseek',
-  status       VARCHAR(20) NOT NULL DEFAULT 'pending'
-               CHECK (status IN ('pending', 'running', 'completed', 'failed')),
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  completed_at TIMESTAMPTZ
+  id              SERIAL PRIMARY KEY,
+  stock_id        INTEGER REFERENCES stocks(id) ON DELETE SET NULL,
+  stock_code      VARCHAR(10),
+  question        TEXT NOT NULL,
+  provider        VARCHAR(20) NOT NULL DEFAULT 'deepseek',
+  execution_mode  VARCHAR(20) NOT NULL DEFAULT 'backend'
+                  CHECK (execution_mode IN ('app', 'backend')),
+  status          VARCHAR(20) NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'running', 'completed', 'failed')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at    TIMESTAMPTZ
 );
+
+ALTER TABLE queries ADD COLUMN IF NOT EXISTS execution_mode VARCHAR(20) NOT NULL DEFAULT 'backend';
 
 CREATE TABLE IF NOT EXISTS responses (
   id         SERIAL PRIMARY KEY,

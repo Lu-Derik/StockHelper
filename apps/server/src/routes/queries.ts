@@ -9,6 +9,7 @@ const CreateQuerySchema = z.object({
   question: z.string().min(1).max(2000),
   stockCode: z.string().optional(),
   provider: z.enum(['deepseek', 'doubao', 'kimi', 'tongyi']).default('deepseek'),
+  executionMode: z.enum(['app', 'backend']).default('backend'),
 })
 
 // POST /api/queries — create query (extension polls for it)
@@ -22,9 +23,9 @@ router.post('/', async (ctx) => {
   }
 
   const result = await pool.query(
-    `INSERT INTO queries (stock_id, stock_code, question, provider, status)
-     VALUES ($1, $2, $3, $4, 'pending') RETURNING *`,
-    [stockId, body.stockCode ?? null, body.question, body.provider]
+    `INSERT INTO queries (stock_id, stock_code, question, provider, execution_mode, status)
+     VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING *`,
+    [stockId, body.stockCode ?? null, body.question, body.provider, body.executionMode]
   )
   ctx.body = { success: true, query: result.rows[0] }
 })
@@ -50,8 +51,11 @@ router.post('/reset-running', async (ctx) => {
 router.post('/claim', async (ctx) => {
   const { rows } = await pool.query(
     `UPDATE queries SET status = 'running'
-     WHERE id = (SELECT id FROM queries WHERE status = 'pending' ORDER BY created_at LIMIT 1)
-     RETURNING *`
+     WHERE id = (
+       SELECT id FROM queries
+       WHERE status = 'pending' AND execution_mode = 'backend'
+       ORDER BY created_at LIMIT 1
+     ) RETURNING *`
   )
   if (rows.length === 0) { ctx.body = { success: true, query: null }; return }
   ctx.body = { success: true, query: rows[0] }
@@ -80,6 +84,10 @@ router.post('/:id/callback', async (ctx) => {
   const { html } = ctx.request.body as { html: string }
   if (!html) { ctx.status = 400; ctx.body = { error: 'html required' }; return }
   await saveResponse(parseInt(ctx.params.id), html)
+  await pool.query(
+    `UPDATE queries SET status = 'completed', completed_at = NOW() WHERE id = $1`,
+    [ctx.params.id]
+  )
   ctx.body = { success: true }
 })
 

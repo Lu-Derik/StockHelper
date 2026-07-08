@@ -216,6 +216,18 @@ async function checkCapture() {
   }
 }
 
+async function updateQueryStatus(queryId, status) {
+  try {
+    await apiFetch(`/api/queries/${queryId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+  } catch (e) {
+    rlog(`status update failed query=${queryId} status=${status}: ${e.message}`)
+  }
+}
+
 async function saveAndFinish(queryId, html) {
   try {
     const res = await apiFetch(`/api/queries/${queryId}/callback`, {
@@ -226,6 +238,7 @@ async function saveAndFinish(queryId, html) {
     const d = await res.json()
     rlog(`SAVED query=${queryId} ok=${d.success}`)
   } catch (e) {
+    await updateQueryStatus(queryId, 'failed')
     rlog(`save FAILED query=${queryId}: ${e.message}`)
   }
   dispatchBusy = false
@@ -236,6 +249,8 @@ async function saveAndFinish(queryId, html) {
 // ── Poll server for pending queries ──────────────────────────────────────────
 async function pollAndDispatch() {
   try {
+    const cfg = await ensureConfigLoaded()
+    if (cfg.mode === 'app') return
     const res = await apiFetch('/api/queries/claim', { method: 'POST' })
     const data = await res.json()
     const query = data.query
@@ -259,6 +274,7 @@ async function dispatchQuery({ id, question, provider }, options = {}) {
   await chrome.storage.session.set({
     stockhelper_pending: { queryId: id, question, provider, mode }
   })
+  await updateQueryStatus(id, 'running')
 
   // Force the extension to operate on the currently visible DeepSeek tab.
   // If a matching tab is already open in the current window, use it and focus it.

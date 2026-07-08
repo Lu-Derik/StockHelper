@@ -151,7 +151,11 @@ export function QueryForm() {
       const res = await apiFetch(`/api/queries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: finalQuestion, stockCode: stockCode.trim() || undefined }),
+        body: JSON.stringify({
+          question: finalQuestion,
+          stockCode: stockCode.trim() || undefined,
+          executionMode,
+        }),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
