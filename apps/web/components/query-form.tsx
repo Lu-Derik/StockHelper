@@ -158,16 +158,10 @@ export function QueryForm() {
 
       if (executionMode === 'app') {
         try {
-          const runtime = (globalThis as unknown as {
-            chrome?: { runtime?: { sendMessage?: (message: unknown) => Promise<unknown> } }
-          }).chrome?.runtime
-          const sendMessage = runtime?.sendMessage
-          if (sendMessage) {
-            await sendMessage({
-              type: EXTENSION_MESSAGE_TYPE,
-              payload: { queryId: data.query.id, question: finalQuestion, provider: 'deepseek' },
-            })
-          }
+          window.postMessage({
+            type: 'STOCKHELPER_QUERY',
+            payload: { queryId: data.query.id, question: finalQuestion, provider: 'deepseek' },
+          }, '*')
         } catch {}
       }
 

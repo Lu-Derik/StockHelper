@@ -24,6 +24,11 @@
       "matches": ["https://chat.deepseek.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://localhost:3000/*", "http://127.0.0.1:3000/*", "http://localhost:3001/*", "http://127.0.0.1:3001/*", "https://stock.unibuy.fun/*"],
+      "js": ["app-bridge.js"],
+      "run_at": "document_idle"
     }
   ],
   "action": {
