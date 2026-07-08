@@ -212,37 +212,117 @@ async function dispatchQuery({ id, question, provider }) {
     stockhelper_pending: { queryId: id, question, provider }
   })
 
-  // Prefer the active DeepSeek tab in the current window; otherwise reuse the
-  // most relevant existing tab; only create a new tab as a last resort.
+  // Force the extension to operate on the currently visible DeepSeek tab.
+  // If a matching tab is already open in the current window, use it and focus it.
+  // If not, create a new visible tab explicitly.
   const tabs = await chrome.tabs.query({ url: url + '*' })
   let tab
 
-  const activeTab = tabs.find((t) => t.active)
+  const currentWindowActiveTab = tabs.find(
+    (t) => t.active && t.windowId === chrome.windows.WINDOW_ID_CURRENT
+  )
   const currentWindowTab = tabs.find((t) => t.windowId === chrome.windows.WINDOW_ID_CURRENT)
-  const preferredTab = activeTab || currentWindowTab || tabs[0]
+  const preferredTab = currentWindowActiveTab || currentWindowTab || tabs[0]
 
   if (preferredTab) {
     tab = preferredTab
     await chrome.tabs.update(tab.id, { active: true })
-    await sleep(500)
+    await chrome.windows.update(tab.windowId, { focused: true })
+    await waitForTabReady(tab.id)
   } else {
-    tab = await chrome.tabs.create({ url })
+    tab = await chrome.tabs.create({ url, active: true })
     await waitForTabComplete(tab.id)
-    await sleep(3000)
+    await waitForTabReady(tab.id)
   }
 
   // Record the tab so background can poll it for the response
   captureState = { tabId: tab.id, queryId: id, startedAt: Date.now(), lastLen: 0, stable: 0 }
 
-  // Inject question into MAIN world (content script receives via window.postMessage)
-  await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: (qId, q) => window.postMessage({ type: 'STOCKHELPER_QUERY', queryId: qId, question: q }, '*'),
-    args: [id, question],
-    world: 'MAIN',
-  })
+  rlog(`dispatching query=${id} tab=${tab.id} url=${tab.url || ''} title=${tab.title || ''} active=${tab.active}`)
 
-  rlog(`dispatched query=${id} tab=${tab.id}`)
+  // Submit directly in the target page so it works even if the content script
+  // was not injected or if the page was already open before the extension loaded.
+  let submitResult
+  try {
+    submitResult = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: (q) => {
+        const marker = document.createElement('div')
+        marker.id = 'stockhelper-marker'
+        marker.textContent = 'StockHelper submitting…'
+        marker.style.position = 'fixed'
+        marker.style.top = '12px'
+        marker.style.right = '12px'
+        marker.style.zIndex = '2147483647'
+        marker.style.background = '#2563eb'
+        marker.style.color = '#fff'
+        marker.style.padding = '8px 12px'
+        marker.style.borderRadius = '8px'
+        marker.style.fontSize = '14px'
+        marker.style.fontFamily = 'sans-serif'
+        marker.style.boxShadow = '0 4px 12px rgba(0,0,0,0.25)'
+        document.body?.appendChild(marker)
+
+        const input = document.querySelector('textarea') || document.querySelector('div[contenteditable="true"]')
+        if (!input) {
+          marker.textContent = 'StockHelper: textarea not found'
+          return { ok: false, reason: 'textarea_not_found', url: location.href, title: document.title }
+        }
+
+        const textareaCandidates = document.querySelectorAll('textarea')
+        const contenteditableCandidates = document.querySelectorAll('div[contenteditable="true"]')
+        const buttonCandidates = document.querySelectorAll('button')
+
+        input.focus()
+        if (input.tagName === 'TEXTAREA') {
+          const nativeSetter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+          nativeSetter.call(input, q)
+          input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: q }))
+        } else if (input.isContentEditable) {
+          input.textContent = q
+          input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: q }))
+        }
+
+        const sendBtn = [...buttonCandidates].find(
+          (b) => b.className.includes('ds-button--primary') || b.className.includes('ds-button--filled') || b.textContent?.includes('Send')
+        )
+
+        if (sendBtn) {
+          sendBtn.click()
+          marker.textContent = 'StockHelper: submitted'
+          return {
+            ok: true,
+            reason: 'clicked_button',
+            url: location.href,
+            title: document.title,
+            textareaCount: textareaCandidates.length,
+            contenteditableCount: contenteditableCandidates.length,
+            buttonCount: buttonCandidates.length,
+          }
+        }
+
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }))
+        marker.textContent = 'StockHelper: submitted'
+        return {
+          ok: true,
+          reason: 'pressed_enter',
+          url: location.href,
+          title: document.title,
+          textareaCount: textareaCandidates.length,
+          contenteditableCount: contenteditableCandidates.length,
+          buttonCount: buttonCandidates.length,
+        }
+      },
+      args: [question],
+      world: 'MAIN',
+    })
+  } catch (e) {
+    rlog(`inject FAILED query=${id} tab=${tab.id}: ${e.message}`)
+    submitResult = []
+  }
+
+  const result = submitResult?.[0]?.result
+  rlog(`dispatched query=${id} tab=${tab.id} submit=${JSON.stringify(result)}`)
 }
 
 function waitForTabComplete(tabId) {
@@ -254,6 +334,20 @@ function waitForTabComplete(tabId) {
       }
     })
   })
+}
+
+async function waitForTabReady(tabId) {
+  const deadline = Date.now() + 20_000
+  while (Date.now() < deadline) {
+    try {
+      const tab = await chrome.tabs.get(tabId)
+      if (tab.status === 'complete') {
+        await sleep(500)
+        return
+      }
+    } catch {}
+    await sleep(500)
+  }
 }
 
 function updateBadge(text, color) {
