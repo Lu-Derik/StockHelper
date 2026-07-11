@@ -93,7 +93,12 @@ export function QueryForm() {
   const [stockName, setStockName] = useState(searchParams.get('name') ?? '')
   const [status, setStatus] = useState<Status>('idle')
   const [queryId, setQueryId] = useState<number | null>(null)
-  const [executionMode, setExecutionMode] = useState<ExecMode>(loadExecutionMode)
+  // MUST default to a constant, server-safe value. Reading localStorage during
+  // render diverges between server ('app' fallback) and client (stored value),
+  // producing a hydration mismatch that can blank the whole page on browsers
+  // whose stored value differs from the default. The real value is loaded in the
+  // mount effect below, after hydration.
+  const [executionMode, setExecutionMode] = useState<ExecMode>('app')
   // 开发DeepSeek is only offered when the app itself is served from localhost.
   const [isLocal, setIsLocal] = useState(false)
   const [error, setError] = useState('')
@@ -103,11 +108,14 @@ export function QueryForm() {
     const host = window.location.hostname
     const local = host === 'localhost' || host === '127.0.0.1'
     setIsLocal(local)
-    // If a stored 'dev' preference is loaded on a non-local host, fall back.
-    if (!local && executionMode === 'dev') {
-      setExecutionMode('app')
+    // Load the persisted mode now (post-hydration). A stored 'dev' preference on
+    // a non-local host falls back to 'app'.
+    let mode = loadExecutionMode()
+    if (mode === 'dev' && !local) {
+      mode = 'app'
       saveExecutionMode('app')
     }
+    setExecutionMode(mode)
   }, [])
 
   // Restore in-progress query on mount
