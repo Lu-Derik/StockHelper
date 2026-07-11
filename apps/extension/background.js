@@ -1,10 +1,15 @@
 // StockHelper Bridge — poll-based, MV3-safe
 const DEFAULT_SERVER = 'https://stock-api.unibuy.fun'
-const VERSION = 'v10-dev-mode'
+const VERSION = 'v12-auto-worker'
+// Where the backend is exposed on the machine that hosts it (docker → 3011).
+const LOCAL_BACKEND = 'http://localhost:3011'
 let dispatchBusy = false
 let captureState = null  // { tabId, queryId, startedAt }
-let extensionConfig = { server: DEFAULT_SERVER, apiKey: '' }
+// workerMode: 'auto' (probe local backend) | 'on' (force) | 'off' (force)
+let extensionConfig = { server: DEFAULT_SERVER, apiKey: '', workerMode: 'auto' }
 let configLoaded = false
+// Cached auto-probe of whether this machine hosts the backend (short TTL).
+let workerProbe = { ts: 0, value: false }
 
 function normalizeServer(value) {
   const raw = (value || DEFAULT_SERVER).trim()
@@ -14,10 +19,13 @@ function normalizeServer(value) {
 
 async function ensureConfigLoaded() {
   if (configLoaded) return extensionConfig
-  const data = await chrome.storage.local.get(['stockhelper_server', 'stockhelper_api_key'])
+  const data = await chrome.storage.local.get(['stockhelper_server', 'stockhelper_api_key', 'stockhelper_worker_mode'])
+  const wm = data.stockhelper_worker_mode
   extensionConfig = {
     server: normalizeServer(data.stockhelper_server || DEFAULT_SERVER),
     apiKey: data.stockhelper_api_key || '',
+    // Only a designated backend-worker machine serves the 后台DeepSeek queue.
+    workerMode: (wm === 'on' || wm === 'off') ? wm : 'auto',
   }
   configLoaded = true
   return extensionConfig
@@ -286,10 +294,37 @@ async function saveAndFinish(queryId, html, server) {
 // ── Poll server for pending queries ──────────────────────────────────────────
 // Serves both queues: backend-mode queries, plus app-mode queries whose direct
 // postMessage dispatch was missed (server enforces a 20s grace period on those).
+// Decide whether this machine serves the backend queue. In 'auto' mode we probe
+// the local backend: only the machine that actually hosts it (docker on 3011)
+// can reach localhost:3011, so it becomes the worker and others opt out.
+async function isBackendWorker() {
+  const cfg = await ensureConfigLoaded()
+  if (cfg.workerMode === 'on') return true
+  if (cfg.workerMode === 'off') return false
+  // auto — cache the probe for 60s to avoid hitting localhost every 3s tick.
+  if (Date.now() - workerProbe.ts < 60_000) return workerProbe.value
+  let ok = false
+  try {
+    const ctrl = new AbortController()
+    const t = setTimeout(() => ctrl.abort(), 1500)
+    const res = await fetch(`${LOCAL_BACKEND}/health`, { signal: ctrl.signal })
+    clearTimeout(t)
+    ok = res.ok
+  } catch { ok = false }
+  workerProbe = { ts: Date.now(), value: ok }
+  return ok
+}
+
 async function pollAndDispatch() {
   try {
+    // Always serve the app-mode fallback queue (missed direct dispatches).
+    // Only a designated backend worker serves the backend queue, so 后台DeepSeek
+    // queries run on that one machine instead of whichever polls first.
+    const claimPaths = (await isBackendWorker())
+      ? ['/api/queries/claim', '/api/queries/claim-app']
+      : ['/api/queries/claim-app']
     let query = null
-    for (const claimPath of ['/api/queries/claim', '/api/queries/claim-app']) {
+    for (const claimPath of claimPaths) {
       const res = await apiFetch(claimPath, { method: 'POST' })
       const data = await res.json()
       if (data.query) { query = data.query; break }
