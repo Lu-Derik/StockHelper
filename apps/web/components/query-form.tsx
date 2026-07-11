@@ -66,14 +66,23 @@ function loadPending(): PendingQuery | null {
   } catch { return null }
 }
 
-function loadExecutionMode(): 'app' | 'backend' {
+// UI-level execution modes. 'dev' is a local-only variant of 'app' that routes
+// the extension's callback to the local backend instead of the public tunnel.
+type ExecMode = 'app' | 'backend' | 'dev'
+
+// The local backend the extension should talk to in dev mode.
+const DEV_SERVER = 'http://localhost:3011'
+
+function loadExecutionMode(): ExecMode {
   try {
     const raw = localStorage.getItem(EXECUTION_MODE_KEY)
-    return raw === 'backend' ? 'backend' : 'app'
+    if (raw === 'backend') return 'backend'
+    if (raw === 'dev') return 'dev'
+    return 'app'
   } catch { return 'app' }
 }
 
-function saveExecutionMode(mode: 'app' | 'backend') {
+function saveExecutionMode(mode: ExecMode) {
   localStorage.setItem(EXECUTION_MODE_KEY, mode)
 }
 
@@ -84,9 +93,22 @@ export function QueryForm() {
   const [stockName, setStockName] = useState(searchParams.get('name') ?? '')
   const [status, setStatus] = useState<Status>('idle')
   const [queryId, setQueryId] = useState<number | null>(null)
-  const [executionMode, setExecutionMode] = useState<'app' | 'backend'>(loadExecutionMode)
+  const [executionMode, setExecutionMode] = useState<ExecMode>(loadExecutionMode)
+  // 开发DeepSeek is only offered when the app itself is served from localhost.
+  const [isLocal, setIsLocal] = useState(false)
   const [error, setError] = useState('')
   const [history, setHistory] = useState<HistoryItem[]>([])
+
+  useEffect(() => {
+    const host = window.location.hostname
+    const local = host === 'localhost' || host === '127.0.0.1'
+    setIsLocal(local)
+    // If a stored 'dev' preference is loaded on a non-local host, fall back.
+    if (!local && executionMode === 'dev') {
+      setExecutionMode('app')
+      saveExecutionMode('app')
+    }
+  }, [])
 
   // Restore in-progress query on mount
   useEffect(() => {
@@ -147,6 +169,10 @@ export function QueryForm() {
     const prefix = parts.length ? parts.join('，') + '，' : ''
     const finalQuestion = prefix + question.trim()
 
+    // Both 'app' and 'dev' dispatch directly to the extension; only the callback
+    // target differs. The DB only distinguishes 'app' vs 'backend'.
+    const backendMode = executionMode === 'backend' ? 'backend' : 'app'
+
     try {
       const res = await apiFetch(`/api/queries`, {
         method: 'POST',
@@ -154,17 +180,23 @@ export function QueryForm() {
         body: JSON.stringify({
           question: finalQuestion,
           stockCode: stockCode.trim() || undefined,
-          executionMode,
+          executionMode: backendMode,
         }),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
 
-      if (executionMode === 'app') {
+      if (executionMode !== 'backend') {
         try {
           window.postMessage({
             type: 'STOCKHELPER_QUERY',
-            payload: { queryId: data.query.id, question: finalQuestion, provider: 'deepseek' },
+            payload: {
+              queryId: data.query.id,
+              question: finalQuestion,
+              provider: 'deepseek',
+              // dev mode routes the extension's callback to the local backend
+              server: executionMode === 'dev' ? DEV_SERVER : undefined,
+            },
           }, '*')
         } catch {}
       }
@@ -254,15 +286,16 @@ export function QueryForm() {
                   id="executionMode"
                   value={executionMode}
                   onChange={(e) => {
-                    const nextMode = e.target.value as 'app' | 'backend'
+                    const nextMode = e.target.value as ExecMode
                     setExecutionMode(nextMode)
                     saveExecutionMode(nextMode)
                   }}
                   disabled={isBusy}
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
-                  <option value="app">App → 扩展 → DeepSeek</option>
-                  <option value="backend">后台 → 扩展 → DeepSeek</option>
+                  <option value="app">本地DeepSeek</option>
+                  <option value="backend">后台DeepSeek</option>
+                  {isLocal && <option value="dev">开发DeepSeek</option>}
                 </select>
               </div>
               <div className="flex-1 space-y-1.5">

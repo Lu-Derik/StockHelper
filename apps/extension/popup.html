@@ -16,22 +16,15 @@
 <body>
   <h3>StockHelper Bridge</h3>
   <label>
-    执行模式
-    <select id="mode">
-      <option value="app">App 直接触发扩展（本地 DeepSeek）</option>
-      <option value="backend">后台触发扩展（后台 DeepSeek）</option>
-    </select>
-  </label>
-  <label>
     服务地址
-    <input id="server" type="text" placeholder="http://localhost:3011" />
+    <input id="server" type="text" placeholder="https://stock-api.unibuy.fun" />
   </label>
   <label>
     API Key
-    <input id="apiKey" type="password" placeholder="可留空" />
+    <input id="apiKey" type="password" placeholder="仅首次安装时填写" />
   </label>
   <button id="save">保存</button>
-  <div id="status" class="warn">请先配置服务地址</div>
+  <div id="status" class="warn">请先配置 API Key</div>
   <script src="popup.js"></script>
 </body>
 </html>

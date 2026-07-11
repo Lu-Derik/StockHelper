@@ -61,6 +61,24 @@ router.post('/claim', async (ctx) => {
   ctx.body = { success: true, query: rows[0] }
 })
 
+// POST /api/queries/claim-app — same but for app-mode queries
+// Used as fallback when the postMessage at submission time was missed.
+// 20s grace period: give the direct postMessage dispatch time to mark the
+// query 'running' before another machine's poller can steal it.
+router.post('/claim-app', async (ctx) => {
+  const { rows } = await pool.query(
+    `UPDATE queries SET status = 'running'
+     WHERE id = (
+       SELECT id FROM queries
+       WHERE status = 'pending' AND execution_mode = 'app'
+         AND created_at < NOW() - INTERVAL '20 seconds'
+       ORDER BY created_at LIMIT 1
+     ) RETURNING *`
+  )
+  if (rows.length === 0) { ctx.body = { success: true, query: null }; return }
+  ctx.body = { success: true, query: rows[0] }
+})
+
 // DELETE /api/queries/:id
 router.delete('/:id(\\d+)', async (ctx) => {
   await pool.query(`DELETE FROM queries WHERE id = $1`, [ctx.params.id])
@@ -73,7 +91,7 @@ router.patch('/:id/status', async (ctx) => {
   const valid = ['pending', 'running', 'completed', 'failed']
   if (!valid.includes(status)) { ctx.status = 400; ctx.body = { error: 'Invalid status' }; return }
   await pool.query(
-    `UPDATE queries SET status = $1, completed_at = CASE WHEN $1 IN ('completed','failed') THEN NOW() ELSE NULL END WHERE id = $2`,
+    `UPDATE queries SET status = $1::varchar, completed_at = CASE WHEN $1::varchar IN ('completed','failed') THEN NOW() ELSE NULL END WHERE id = $2`,
     [status, ctx.params.id]
   )
   ctx.body = { success: true }

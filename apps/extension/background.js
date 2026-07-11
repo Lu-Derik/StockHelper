@@ -1,9 +1,9 @@
 // StockHelper Bridge — poll-based, MV3-safe
-const DEFAULT_SERVER = 'http://localhost:3011'
-const VERSION = 'v7-sibling-toolbar'
+const DEFAULT_SERVER = 'https://stock-api.unibuy.fun'
+const VERSION = 'v10-dev-mode'
 let dispatchBusy = false
 let captureState = null  // { tabId, queryId, startedAt }
-let extensionConfig = { server: DEFAULT_SERVER, apiKey: '', mode: 'app' }
+let extensionConfig = { server: DEFAULT_SERVER, apiKey: '' }
 let configLoaded = false
 
 function normalizeServer(value) {
@@ -14,17 +14,16 @@ function normalizeServer(value) {
 
 async function ensureConfigLoaded() {
   if (configLoaded) return extensionConfig
-  const data = await chrome.storage.local.get(['stockhelper_server', 'stockhelper_api_key', 'stockhelper_mode'])
+  const data = await chrome.storage.local.get(['stockhelper_server', 'stockhelper_api_key'])
   extensionConfig = {
     server: normalizeServer(data.stockhelper_server || DEFAULT_SERVER),
     apiKey: data.stockhelper_api_key || '',
-    mode: data.stockhelper_mode || 'app',
   }
   configLoaded = true
   return extensionConfig
 }
 
-async function apiFetch(path, init = {}) {
+async function apiFetch(path, init = {}, serverOverride) {
   const cfg = await ensureConfigLoaded()
   const headers = new Headers(init.headers || {})
   if (init.body && !headers.has('Content-Type')) {
@@ -33,7 +32,10 @@ async function apiFetch(path, init = {}) {
   if (cfg.apiKey) {
     headers.set('X-API-Key', cfg.apiKey)
   }
-  return fetch(`${cfg.server}${path}`, { ...init, headers })
+  // serverOverride lets a single dispatch (e.g. dev mode) target a different
+  // backend than the configured one — its status/callback go there instead.
+  const base = serverOverride || cfg.server
+  return fetch(`${base}${path}`, { ...init, headers })
 }
 
 // Remote debug log (server console access workaround)
@@ -109,14 +111,14 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'run_query') {
-    const { queryId, question, provider } = msg.payload || {}
+    const { queryId, question, provider, server } = msg.payload || {}
     if (!queryId || !question) {
       sendResponse({ ok: false, error: 'invalid payload' })
       return true
     }
     dispatchBusy = true
     updateBadge('...', '#f59e0b')
-    dispatchQuery({ id: queryId, question, provider: provider || 'deepseek' }, { source: 'app' })
+    dispatchQuery({ id: queryId, question, provider: provider || 'deepseek', server }, { source: 'app' })
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: err?.message || 'failed' }))
     return true
@@ -241,38 +243,39 @@ async function checkCapture() {
         }
       })
       const html = htmlResults?.[0]?.result ?? ''
+      const server = captureState.server
       captureState = null
       saveCaptureState(null)
-      await saveAndFinish(queryId, html)
+      await saveAndFinish(queryId, html, server)
     }
   } catch (e) {
     rlog(`executeScript FAILED: ${e.message}`)
   }
 }
 
-async function updateQueryStatus(queryId, status) {
+async function updateQueryStatus(queryId, status, server) {
   try {
     await apiFetch(`/api/queries/${queryId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
-    })
+    }, server)
   } catch (e) {
     rlog(`status update failed query=${queryId} status=${status}: ${e.message}`)
   }
 }
 
-async function saveAndFinish(queryId, html) {
+async function saveAndFinish(queryId, html, server) {
   try {
     const res = await apiFetch(`/api/queries/${queryId}/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ html }),
-    })
+    }, server)
     const d = await res.json()
     rlog(`SAVED query=${queryId} ok=${d.success}`)
   } catch (e) {
-    await updateQueryStatus(queryId, 'failed')
+    await updateQueryStatus(queryId, 'failed', server)
     rlog(`save FAILED query=${queryId}: ${e.message}`)
   }
   dispatchBusy = false
@@ -281,13 +284,16 @@ async function saveAndFinish(queryId, html) {
 }
 
 // ── Poll server for pending queries ──────────────────────────────────────────
+// Serves both queues: backend-mode queries, plus app-mode queries whose direct
+// postMessage dispatch was missed (server enforces a 20s grace period on those).
 async function pollAndDispatch() {
   try {
-    const cfg = await ensureConfigLoaded()
-    if (cfg.mode === 'app') return
-    const res = await apiFetch('/api/queries/claim', { method: 'POST' })
-    const data = await res.json()
-    const query = data.query
+    let query = null
+    for (const claimPath of ['/api/queries/claim', '/api/queries/claim-app']) {
+      const res = await apiFetch(claimPath, { method: 'POST' })
+      const data = await res.json()
+      if (data.query) { query = data.query; break }
+    }
     if (!query) return
 
     dispatchBusy = true
@@ -298,17 +304,15 @@ async function pollAndDispatch() {
   }
 }
 
-async function dispatchQuery({ id, question, provider }, options = {}) {
-  const cfg = await ensureConfigLoaded()
-  const mode = options.source === 'app' ? 'app' : (cfg.mode || 'app')
+async function dispatchQuery({ id, question, provider, server }, options = {}) {
   const providerUrls = { deepseek: 'https://chat.deepseek.com/' }
   const url = providerUrls[provider]
   if (!url) { dispatchBusy = false; return }
 
   await chrome.storage.session.set({
-    stockhelper_pending: { queryId: id, question, provider, mode }
+    stockhelper_pending: { queryId: id, question, provider }
   })
-  await updateQueryStatus(id, 'running')
+  await updateQueryStatus(id, 'running', server)
 
   // Force the extension to operate on the currently visible DeepSeek tab.
   // If a matching tab is already open in the current window, use it and focus it.
@@ -334,7 +338,7 @@ async function dispatchQuery({ id, question, provider }, options = {}) {
   }
 
   // Record the tab so background can poll it for the response
-  captureState = { tabId: tab.id, queryId: id, startedAt: Date.now(), lastLen: 0, stable: 0 }
+  captureState = { tabId: tab.id, queryId: id, startedAt: Date.now(), lastLen: 0, stable: 0, server }
   await saveCaptureState(captureState)
 
   rlog(`dispatching query=${id} tab=${tab.id} url=${tab.url || ''} title=${tab.title || ''} active=${tab.active}`)
@@ -421,7 +425,7 @@ async function dispatchQuery({ id, question, provider }, options = {}) {
   }
 
   const result = submitResult?.[0]?.result
-  rlog(`dispatched query=${id} tab=${tab.id} mode=${mode} submit=${JSON.stringify(result)}`)
+  rlog(`dispatched query=${id} tab=${tab.id} source=${options.source || 'poll'} submit=${JSON.stringify(result)}`)
 }
 
 function waitForTabComplete(tabId) {
