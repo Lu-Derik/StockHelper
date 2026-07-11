@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Send, Loader2, X } from 'lucide-react'
+import { Send, Loader2, X, StopCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
@@ -103,6 +103,17 @@ export function QueryForm() {
   const [isLocal, setIsLocal] = useState(false)
   const [error, setError] = useState('')
   const [history, setHistory] = useState<HistoryItem[]>([])
+  // Poll timers, kept in a ref so a manual cancel can stop them.
+  const pollTimers = useRef<{ interval?: ReturnType<typeof setInterval>; timeout?: ReturnType<typeof setTimeout> }>({})
+
+  const clearPolling = () => {
+    if (pollTimers.current.interval) clearInterval(pollTimers.current.interval)
+    if (pollTimers.current.timeout) clearTimeout(pollTimers.current.timeout)
+    pollTimers.current = {}
+  }
+
+  // Clear timers on unmount.
+  useEffect(() => clearPolling, [])
 
   useEffect(() => {
     const host = window.location.hostname
@@ -238,7 +249,8 @@ export function QueryForm() {
 
   const pollStatus = (id: number, displayQuestion = '') => {
     const q = displayQuestion || (loadPending()?.displayQuestion ?? '')
-    const interval = setInterval(async () => {
+    clearPolling()
+    pollTimers.current.interval = setInterval(async () => {
       try {
         const res = await apiFetch(`/api/queries/${id}`)
         const data = await res.json()
@@ -246,16 +258,35 @@ export function QueryForm() {
         if (s === 'completed' || s === 'failed') {
           setStatus(s)
           savePending(null)
-          clearInterval(interval)
+          clearPolling()
           // server may have auto-registered a stock from the response
           if (s === 'completed') window.dispatchEvent(new CustomEvent('stocks-updated'))
         } else if (s === 'running') {
           setStatus('running')
           savePending({ queryId: id, displayQuestion: q, status: 'running' })
         }
-      } catch { clearInterval(interval) }
+      } catch { clearPolling() }
     }, 2000)
-    setTimeout(() => { clearInterval(interval); savePending(null) }, 180_000)
+    pollTimers.current.timeout = setTimeout(() => { clearPolling(); savePending(null) }, 180_000)
+  }
+
+  // Stop waiting for a slow backend query: halt polling, mark the query failed
+  // server-side so it doesn't linger, and reset the form for a new submission.
+  const handleCancel = async () => {
+    clearPolling()
+    savePending(null)
+    const id = queryId
+    setStatus('idle')
+    setQueryId(null)
+    if (id != null) {
+      try {
+        await apiFetch(`/api/queries/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'failed' }),
+        })
+      } catch { /* best-effort */ }
+    }
   }
 
   const statusBadge: Record<Status, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -333,16 +364,26 @@ export function QueryForm() {
                 {/* invisible label keeps button vertically aligned with inputs */}
                 <span className="text-sm invisible select-none">_</span>
                 <div className="flex items-center gap-2">
-                  <Button
-                    type="submit"
-                    disabled={!question.trim() || isBusy}
-                    className="flex-1 gap-2 shadow-sm"
-                  >
-                    {isBusy
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Send className="h-4 w-4" />}
-                    发送给 AI
-                  </Button>
+                  {isBusy ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={handleCancel}
+                      className="flex-1 gap-2 shadow-sm"
+                    >
+                      <StopCircle className="h-4 w-4" />
+                      终止等待
+                    </Button>
+                  ) : (
+                    <Button
+                      type="submit"
+                      disabled={!question.trim()}
+                      className="flex-1 gap-2 shadow-sm"
+                    >
+                      <Send className="h-4 w-4" />
+                      发送给 AI
+                    </Button>
+                  )}
                   {status !== 'idle' && (
                     <Badge variant={statusBadge[status].variant} className="text-xs whitespace-nowrap shrink-0">
                       {statusBadge[status].label}

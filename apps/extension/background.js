@@ -1,15 +1,15 @@
 // StockHelper Bridge — poll-based, MV3-safe
 const DEFAULT_SERVER = 'https://stock-api.unibuy.fun'
-const VERSION = 'v12-auto-worker'
+const VERSION = 'v13-auto-worker'
 // Where the backend is exposed on the machine that hosts it (docker → 3011).
 const LOCAL_BACKEND = 'http://localhost:3011'
 let dispatchBusy = false
 let captureState = null  // { tabId, queryId, startedAt }
-// workerMode: 'auto' (probe local backend) | 'on' (force) | 'off' (force)
-let extensionConfig = { server: DEFAULT_SERVER, apiKey: '', workerMode: 'auto' }
+// Server is hardcoded (tunnel); only the API key is user-configurable.
+let extensionConfig = { server: DEFAULT_SERVER, apiKey: '' }
 let configLoaded = false
 // Cached auto-probe of whether this machine hosts the backend (short TTL).
-let workerProbe = { ts: 0, value: false }
+let workerProbe = { ts: 0, value: null }
 
 function normalizeServer(value) {
   const raw = (value || DEFAULT_SERVER).trim()
@@ -19,13 +19,11 @@ function normalizeServer(value) {
 
 async function ensureConfigLoaded() {
   if (configLoaded) return extensionConfig
-  const data = await chrome.storage.local.get(['stockhelper_server', 'stockhelper_api_key', 'stockhelper_worker_mode'])
-  const wm = data.stockhelper_worker_mode
+  const data = await chrome.storage.local.get(['stockhelper_api_key'])
   extensionConfig = {
-    server: normalizeServer(data.stockhelper_server || DEFAULT_SERVER),
+    // Server is hardcoded to the tunnel; storage overrides are ignored.
+    server: DEFAULT_SERVER,
     apiKey: data.stockhelper_api_key || '',
-    // Only a designated backend-worker machine serves the 后台DeepSeek queue.
-    workerMode: (wm === 'on' || wm === 'off') ? wm : 'auto',
   }
   configLoaded = true
   return extensionConfig
@@ -298,11 +296,10 @@ async function saveAndFinish(queryId, html, server) {
 // the local backend: only the machine that actually hosts it (docker on 3011)
 // can reach localhost:3011, so it becomes the worker and others opt out.
 async function isBackendWorker() {
-  const cfg = await ensureConfigLoaded()
-  if (cfg.workerMode === 'on') return true
-  if (cfg.workerMode === 'off') return false
-  // auto — cache the probe for 60s to avoid hitting localhost every 3s tick.
-  if (Date.now() - workerProbe.ts < 60_000) return workerProbe.value
+  // Cache the probe for 60s to avoid hitting localhost every 3s tick.
+  if (workerProbe.value !== null && Date.now() - workerProbe.ts < 60_000) {
+    return workerProbe.value
+  }
   let ok = false
   try {
     const ctrl = new AbortController()
@@ -311,6 +308,10 @@ async function isBackendWorker() {
     clearTimeout(t)
     ok = res.ok
   } catch { ok = false }
+  // Log only when the decision changes, so we can confirm each machine's role.
+  if (workerProbe.value !== ok) {
+    rlog(`backend-worker=${ok} (localhost:3011 reachable=${ok})`)
+  }
   workerProbe = { ts: Date.now(), value: ok }
   return ok
 }

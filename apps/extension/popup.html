@@ -17,21 +17,8 @@
 <body>
   <h3>StockHelper Bridge</h3>
   <label>
-    服务地址
-    <input id="server" type="text" placeholder="https://stock-api.unibuy.fun" />
-  </label>
-  <label>
     API Key
     <input id="apiKey" type="password" placeholder="仅首次安装时填写" />
-  </label>
-  <label>
-    作为后台执行机
-    <select id="workerMode">
-      <option value="auto">自动检测（能访问本地后台则开启）</option>
-      <option value="on">强制开启</option>
-      <option value="off">强制关闭</option>
-    </select>
-    <span class="hint">决定本机是否回答“后台DeepSeek”查询。自动模式下，运行后台服务的机器会自动开启，其他机器自动关闭。</span>
   </label>
   <button id="save">保存</button>
   <div id="status" class="warn">请先配置 API Key</div>
