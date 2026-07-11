@@ -17,6 +17,15 @@
 <body>
   <h3>StockHelper Bridge</h3>
   <label>
+    执行模式
+    <select id="mode">
+      <option value="local">本地DeepSeek</option>
+      <option value="backend">后台DeepSeek</option>
+      <option value="dev" hidden>开发DeepSeek</option>
+    </select>
+    <span class="hint">本机提问运行在哪台 DeepSeek：本地=本机；后台=运行后台服务的机器。</span>
+  </label>
+  <label>
     API Key
     <input id="apiKey" type="password" placeholder="仅首次安装时填写" />
   </label>

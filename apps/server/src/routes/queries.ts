@@ -79,6 +79,17 @@ router.post('/claim-app', async (ctx) => {
   ctx.body = { success: true, query: rows[0] }
 })
 
+// POST /api/queries/:id/to-backend — move a query into the backend queue.
+// Used by a machine whose extension is in 后台DeepSeek mode: it hands its own
+// submission off to the backend-service machine instead of running it locally.
+router.post('/:id/to-backend', async (ctx) => {
+  await pool.query(
+    `UPDATE queries SET execution_mode = 'backend', status = 'pending', completed_at = NULL WHERE id = $1`,
+    [ctx.params.id]
+  )
+  ctx.body = { success: true }
+})
+
 // DELETE /api/queries/:id
 router.delete('/:id(\\d+)', async (ctx) => {
   await pool.query(`DELETE FROM queries WHERE id = $1`, [ctx.params.id])

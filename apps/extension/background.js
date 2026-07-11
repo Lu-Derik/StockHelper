@@ -1,12 +1,14 @@
 // StockHelper Bridge — poll-based, MV3-safe
 const DEFAULT_SERVER = 'https://stock-api.unibuy.fun'
-const VERSION = 'v13-auto-worker'
+const VERSION = 'v14-mode-in-ext'
 // Where the backend is exposed on the machine that hosts it (docker → 3011).
 const LOCAL_BACKEND = 'http://localhost:3011'
 let dispatchBusy = false
 let captureState = null  // { tabId, queryId, startedAt }
-// Server is hardcoded (tunnel); only the API key is user-configurable.
-let extensionConfig = { server: DEFAULT_SERVER, apiKey: '' }
+// Per-machine mode: 'local' (run here) | 'backend' (hand to backend machine) |
+//                   'dev' (run here, callback to local backend).
+// Server is hardcoded (tunnel); the API key + mode are user-configurable.
+let extensionConfig = { server: DEFAULT_SERVER, apiKey: '', mode: 'local' }
 let configLoaded = false
 // Cached auto-probe of whether this machine hosts the backend (short TTL).
 let workerProbe = { ts: 0, value: null }
@@ -19,11 +21,13 @@ function normalizeServer(value) {
 
 async function ensureConfigLoaded() {
   if (configLoaded) return extensionConfig
-  const data = await chrome.storage.local.get(['stockhelper_api_key'])
+  const data = await chrome.storage.local.get(['stockhelper_api_key', 'stockhelper_mode'])
+  const m = data.stockhelper_mode
   extensionConfig = {
     // Server is hardcoded to the tunnel; storage overrides are ignored.
     server: DEFAULT_SERVER,
     apiKey: data.stockhelper_api_key || '',
+    mode: (m === 'backend' || m === 'dev') ? m : 'local',
   }
   configLoaded = true
   return extensionConfig
@@ -117,14 +121,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
 
   if (msg.type === 'run_query') {
-    const { queryId, question, provider, server } = msg.payload || {}
+    const { queryId, question, provider } = msg.payload || {}
     if (!queryId || !question) {
       sendResponse({ ok: false, error: 'invalid payload' })
       return true
     }
-    dispatchBusy = true
-    updateBadge('...', '#f59e0b')
-    dispatchQuery({ id: queryId, question, provider: provider || 'deepseek', server }, { source: 'app' })
+    routeQuery({ id: queryId, question, provider: provider || 'deepseek' })
       .then(() => sendResponse({ ok: true }))
       .catch((err) => sendResponse({ ok: false, error: err?.message || 'failed' }))
     return true
@@ -318,18 +320,14 @@ async function isBackendWorker() {
 
 async function pollAndDispatch() {
   try {
-    // Always serve the app-mode fallback queue (missed direct dispatches).
-    // Only a designated backend worker serves the backend queue, so 后台DeepSeek
-    // queries run on that one machine instead of whichever polls first.
-    const claimPaths = (await isBackendWorker())
-      ? ['/api/queries/claim', '/api/queries/claim-app']
-      : ['/api/queries/claim-app']
-    let query = null
-    for (const claimPath of claimPaths) {
-      const res = await apiFetch(claimPath, { method: 'POST' })
-      const data = await res.json()
-      if (data.query) { query = data.query; break }
-    }
+    // Only the backend-service machine serves the backend queue; every other
+    // machine runs solely its own local submissions via direct dispatch. This is
+    // what guarantees 后台DeepSeek queries never land on a machine without the
+    // backend service. (No cross-machine app-fallback queue — that caused leaks.)
+    if (!(await isBackendWorker())) return
+    const res = await apiFetch('/api/queries/claim', { method: 'POST' })
+    const data = await res.json()
+    const query = data.query
     if (!query) return
 
     dispatchBusy = true
@@ -338,6 +336,27 @@ async function pollAndDispatch() {
   } catch {
     // Server not reachable
   }
+}
+
+// Route a query submitted from THIS machine's app, based on this machine's mode.
+async function routeQuery({ id, question, provider }) {
+  const cfg = await ensureConfigLoaded()
+  if (cfg.mode === 'backend') {
+    // Hand off to the backend-service machine; do not run here.
+    try {
+      await apiFetch(`/api/queries/${id}/to-backend`, { method: 'POST' })
+      rlog(`routed query=${id} → backend queue`)
+    } catch (e) {
+      rlog(`route-to-backend FAILED query=${id}: ${e.message}`)
+    }
+    return
+  }
+  // 'local' or 'dev' → run on this machine. dev routes the callback to the
+  // local backend (localhost:3011) instead of the tunnel.
+  dispatchBusy = true
+  updateBadge('...', '#f59e0b')
+  const server = cfg.mode === 'dev' ? LOCAL_BACKEND : undefined
+  await dispatchQuery({ id, question, provider, server }, { source: 'app' })
 }
 
 async function dispatchQuery({ id, question, provider, server }, options = {}) {

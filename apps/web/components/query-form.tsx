@@ -12,10 +12,7 @@ import { Badge } from '@/components/ui/badge'
 
 import { apiFetch } from '@/lib/api'
 
-const EXTENSION_MESSAGE_TYPE = 'run_query'
-
 const PENDING_KEY = 'stockhelper_pending_query'
-const EXECUTION_MODE_KEY = 'stockhelper_execution_mode'
 // Ids hidden from the 提问 history list. These only remove the entry here;
 // the underlying record stays in the DB and on the 记录 page.
 const DISMISSED_KEY = 'stockhelper_dismissed_history'
@@ -66,26 +63,6 @@ function loadPending(): PendingQuery | null {
   } catch { return null }
 }
 
-// UI-level execution modes. 'dev' is a local-only variant of 'app' that routes
-// the extension's callback to the local backend instead of the public tunnel.
-type ExecMode = 'app' | 'backend' | 'dev'
-
-// The local backend the extension should talk to in dev mode.
-const DEV_SERVER = 'http://localhost:3011'
-
-function loadExecutionMode(): ExecMode {
-  try {
-    const raw = localStorage.getItem(EXECUTION_MODE_KEY)
-    if (raw === 'backend') return 'backend'
-    if (raw === 'dev') return 'dev'
-    return 'app'
-  } catch { return 'app' }
-}
-
-function saveExecutionMode(mode: ExecMode) {
-  localStorage.setItem(EXECUTION_MODE_KEY, mode)
-}
-
 export function QueryForm() {
   const searchParams = useSearchParams()
   const [question, setQuestion] = useState(searchParams.get('code') ? '' : '')
@@ -93,14 +70,6 @@ export function QueryForm() {
   const [stockName, setStockName] = useState(searchParams.get('name') ?? '')
   const [status, setStatus] = useState<Status>('idle')
   const [queryId, setQueryId] = useState<number | null>(null)
-  // MUST default to a constant, server-safe value. Reading localStorage during
-  // render diverges between server ('app' fallback) and client (stored value),
-  // producing a hydration mismatch that can blank the whole page on browsers
-  // whose stored value differs from the default. The real value is loaded in the
-  // mount effect below, after hydration.
-  const [executionMode, setExecutionMode] = useState<ExecMode>('app')
-  // 开发DeepSeek is only offered when the app itself is served from localhost.
-  const [isLocal, setIsLocal] = useState(false)
   const [error, setError] = useState('')
   const [history, setHistory] = useState<HistoryItem[]>([])
   // Poll timers, kept in a ref so a manual cancel can stop them.
@@ -114,20 +83,6 @@ export function QueryForm() {
 
   // Clear timers on unmount.
   useEffect(() => clearPolling, [])
-
-  useEffect(() => {
-    const host = window.location.hostname
-    const local = host === 'localhost' || host === '127.0.0.1'
-    setIsLocal(local)
-    // Load the persisted mode now (post-hydration). A stored 'dev' preference on
-    // a non-local host falls back to 'app'.
-    let mode = loadExecutionMode()
-    if (mode === 'dev' && !local) {
-      mode = 'app'
-      saveExecutionMode('app')
-    }
-    setExecutionMode(mode)
-  }, [])
 
   // Restore in-progress query on mount
   useEffect(() => {
@@ -188,37 +143,34 @@ export function QueryForm() {
     const prefix = parts.length ? parts.join('，') + '，' : ''
     const finalQuestion = prefix + question.trim()
 
-    // Both 'app' and 'dev' dispatch directly to the extension; only the callback
-    // target differs. The DB only distinguishes 'app' vs 'backend'.
-    const backendMode = executionMode === 'backend' ? 'backend' : 'app'
-
     try {
+      // The app no longer decides the execution mode — it always creates the
+      // query and hands it to the LOCAL extension. The extension routes it based
+      // on its own per-machine mode (本地 / 后台 / 开发):
+      //   本地/开发 → run on this machine's DeepSeek
+      //   后台      → move to the backend queue, run on the backend-service machine
       const res = await apiFetch(`/api/queries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: finalQuestion,
           stockCode: stockCode.trim() || undefined,
-          executionMode: backendMode,
+          executionMode: 'app',
         }),
       })
       const data = await res.json()
       if (!data.success) throw new Error(data.error)
 
-      if (executionMode !== 'backend') {
-        try {
-          window.postMessage({
-            type: 'STOCKHELPER_QUERY',
-            payload: {
-              queryId: data.query.id,
-              question: finalQuestion,
-              provider: 'deepseek',
-              // dev mode routes the extension's callback to the local backend
-              server: executionMode === 'dev' ? DEV_SERVER : undefined,
-            },
-          }, '*')
-        } catch {}
-      }
+      try {
+        window.postMessage({
+          type: 'STOCKHELPER_QUERY',
+          payload: {
+            queryId: data.query.id,
+            question: finalQuestion,
+            provider: 'deepseek',
+          },
+        }, '*')
+      } catch {}
 
       if (stockCode.trim() && stockName.trim()) {
         apiFetch(`/api/stocks`, {
@@ -319,24 +271,6 @@ export function QueryForm() {
 
             {/* Stock code / name / send button — all on one row */}
             <div className="flex gap-3 items-end">
-              <div className="flex-1 space-y-1.5">
-                <Label htmlFor="executionMode" className="text-sm font-medium">执行模式</Label>
-                <select
-                  id="executionMode"
-                  value={executionMode}
-                  onChange={(e) => {
-                    const nextMode = e.target.value as ExecMode
-                    setExecutionMode(nextMode)
-                    saveExecutionMode(nextMode)
-                  }}
-                  disabled={isBusy}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="app">本地DeepSeek</option>
-                  <option value="backend">后台DeepSeek</option>
-                  {isLocal && <option value="dev">开发DeepSeek</option>}
-                </select>
-              </div>
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="stockCode" className="text-sm font-medium">股票代码（可选）</Label>
                 <Input
