@@ -102,7 +102,7 @@ export function QueryForm() {
     if (name) setStockName(name)
   }, [searchParams])
 
-  useEffect(() => {
+  const loadHistory = () =>
     apiFetch(`/api/queries?pageSize=20&status=completed`)
       .then((r) => r.json())
       .then((d) => {
@@ -119,7 +119,8 @@ export function QueryForm() {
         setHistory(deduped)
       })
       .catch(() => {})
-  }, [])
+
+  useEffect(() => { loadHistory() }, [])
 
   // Only hide the entry from this list — does NOT delete the record.
   // Real deletion happens on the 记录 page.
@@ -211,8 +212,12 @@ export function QueryForm() {
           setStatus(s)
           savePending(null)
           clearPolling()
-          // server may have auto-registered a stock from the response
-          if (s === 'completed') window.dispatchEvent(new CustomEvent('stocks-updated'))
+          if (s === 'completed') {
+            // server may have auto-registered a stock from the response
+            window.dispatchEvent(new CustomEvent('stocks-updated'))
+            // refresh 最近提问 so the just-answered question shows without a reload
+            loadHistory()
+          }
         } else if (s === 'running') {
           setStatus('running')
           savePending({ queryId: id, displayQuestion: q, status: 'running' })
