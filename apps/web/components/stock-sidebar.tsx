@@ -110,6 +110,15 @@ export function StockSidebar() {
 
   if (stocks.length === 0) return null
 
+  // A multi-tag stock renders once per tag group. Attach the scroll target ref
+  // to the FIRST rendered active occurrence only, so selecting it scrolls to the
+  // topmost tag rather than a lower one. Reset each render; evaluated in DOM order.
+  let activeRefAssigned = false
+  const refForActive = (isActive: boolean) => {
+    if (isActive && !activeRefAssigned) { activeRefAssigned = true; return activeItemRef }
+    return undefined
+  }
+
   return (
     <aside className="w-60 min-w-[15rem] shrink-0 sticky top-20 self-start">
       <div className="rounded-xl border bg-card card-shadow overflow-hidden">
@@ -157,7 +166,7 @@ export function StockSidebar() {
               return (
                 <div
                   key={s.id}
-                  ref={active ? activeItemRef : undefined}
+                  ref={refForActive(active)}
                   role="button"
                   tabIndex={0}
                   onClick={() => selectStock(s)}
@@ -247,7 +256,7 @@ export function StockSidebar() {
                         return (
                           <div
                             key={s.id}
-                            ref={active ? activeItemRef : undefined}
+                            ref={refForActive(active)}
                             role="button"
                             tabIndex={0}
                             onClick={() => selectStock(s)}
