@@ -61,22 +61,14 @@ router.post('/claim', async (ctx) => {
   ctx.body = { success: true, query: rows[0] }
 })
 
-// POST /api/queries/claim-app — same but for app-mode queries
-// Used as fallback when the postMessage at submission time was missed.
-// 20s grace period: give the direct postMessage dispatch time to mark the
-// query 'running' before another machine's poller can steal it.
+// POST /api/queries/claim-app — DISABLED.
+// This was a cross-machine fallback queue for missed app-mode dispatches, but it
+// let one machine claim another machine's 本地DeepSeek query and run it remotely.
+// 本地 queries must run only on the machine that submitted them (via the local
+// extension's direct dispatch), so this endpoint now always returns nothing.
+// Kept as a no-op so older extensions (≤v13) that still poll it can't leak.
 router.post('/claim-app', async (ctx) => {
-  const { rows } = await pool.query(
-    `UPDATE queries SET status = 'running'
-     WHERE id = (
-       SELECT id FROM queries
-       WHERE status = 'pending' AND execution_mode = 'app'
-         AND created_at < NOW() - INTERVAL '20 seconds'
-       ORDER BY created_at LIMIT 1
-     ) RETURNING *`
-  )
-  if (rows.length === 0) { ctx.body = { success: true, query: null }; return }
-  ctx.body = { success: true, query: rows[0] }
+  ctx.body = { success: true, query: null }
 })
 
 // POST /api/queries/:id/to-backend — move a query into the backend queue.
