@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { BarChart2, MessageSquare, BookOpen, Moon, Sun, CandlestickChart } from 'lucide-react'
+import { BarChart2, MessageSquare, BookOpen, Moon, Sun, CandlestickChart, Sparkles } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/kline', label: 'K线', icon: CandlestickChart, carriesStock: true },
   { href: '/records', label: '记录', icon: BookOpen, carriesStock: true },
   { href: '/stocks', label: '股票', icon: BarChart2, carriesStock: true },
+  { href: '/chat', label: '问答', icon: Sparkles, carriesStock: false },
 ]
 
 export function Navbar() {

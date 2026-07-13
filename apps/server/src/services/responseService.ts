@@ -40,9 +40,11 @@ function extractStock(text: string): { code: string; name: string } | null {
 // Prefers the code the user supplied; otherwise extracts name(code) from the response.
 async function autoRegisterStock(queryId: number, markdown: string) {
   const { rows } = await pool.query(
-    `SELECT stock_code FROM queries WHERE id = $1`,
+    `SELECT stock_code, kind FROM queries WHERE id = $1`,
     [queryId]
   )
+  // 通用问答(general) 的回答不应被当作股票登记到自选股。
+  if (rows[0]?.kind === 'general') return
   const providedCode: string | null = rows[0]?.stock_code ?? null
 
   const extracted = extractStock(markdown)

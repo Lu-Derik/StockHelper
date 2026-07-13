@@ -25,6 +25,11 @@ CREATE TABLE IF NOT EXISTS queries (
 
 ALTER TABLE queries ADD COLUMN IF NOT EXISTS execution_mode VARCHAR(20) NOT NULL DEFAULT 'backend';
 
+-- Query origin: 'stock' = 股票研究(提问)页面; 'general' = 通用问答(问答)页面.
+-- 'general' rows also carry an auto-derived sidebar title.
+ALTER TABLE queries ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'stock';
+ALTER TABLE queries ADD COLUMN IF NOT EXISTS title TEXT;
+
 CREATE TABLE IF NOT EXISTS responses (
   id         SERIAL PRIMARY KEY,
   query_id   INTEGER NOT NULL REFERENCES queries(id) ON DELETE CASCADE,

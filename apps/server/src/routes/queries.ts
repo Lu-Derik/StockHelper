@@ -10,7 +10,14 @@ const CreateQuerySchema = z.object({
   stockCode: z.string().optional(),
   provider: z.enum(['deepseek', 'doubao', 'kimi', 'tongyi']).default('deepseek'),
   executionMode: z.enum(['app', 'backend']).default('backend'),
+  kind: z.enum(['stock', 'general']).default('stock'),
 })
+
+// Derive a short sidebar title from the question text (first line, truncated).
+function titleFromQuestion(question: string): string {
+  const firstLine = question.replace(/\s+/g, ' ').trim()
+  return firstLine.length > 20 ? firstLine.slice(0, 20) + '…' : firstLine
+}
 
 // POST /api/queries — create query (extension polls for it)
 router.post('/', async (ctx) => {
@@ -22,10 +29,12 @@ router.post('/', async (ctx) => {
     if (res.rows.length > 0) stockId = res.rows[0].id
   }
 
+  const title = body.kind === 'general' ? titleFromQuestion(body.question) : null
+
   const result = await pool.query(
-    `INSERT INTO queries (stock_id, stock_code, question, provider, execution_mode, status)
-     VALUES ($1, $2, $3, $4, $5, 'pending') RETURNING *`,
-    [stockId, body.stockCode ?? null, body.question, body.provider, body.executionMode]
+    `INSERT INTO queries (stock_id, stock_code, question, provider, execution_mode, status, kind, title)
+     VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7) RETURNING *`,
+    [stockId, body.stockCode ?? null, body.question, body.provider, body.executionMode, body.kind, title]
   )
   ctx.body = { success: true, query: result.rows[0] }
 })
@@ -112,13 +121,16 @@ router.post('/:id/callback', async (ctx) => {
   ctx.body = { success: true }
 })
 
-// GET /api/queries — list with optional filters
+// GET /api/queries — list with optional filters.
+// kind defaults to 'stock' so the existing 记录/提问 pages are unaffected; the
+// 问答 page passes kind=general to get its own queries.
 router.get('/', async (ctx) => {
-  const { stockCode, status, page = '1', pageSize = '20' } = ctx.query as Record<string, string>
+  const { stockCode, status, kind = 'stock', page = '1', pageSize = '20' } = ctx.query as Record<string, string>
   const offset = (parseInt(page) - 1) * parseInt(pageSize)
   const conditions: string[] = []
   const params: unknown[] = []
 
+  params.push(kind); conditions.push(`q.kind = $${params.length}`)
   if (stockCode) { params.push(stockCode); conditions.push(`q.stock_code = $${params.length}`) }
   if (status) { params.push(status); conditions.push(`q.status = $${params.length}`) }
 

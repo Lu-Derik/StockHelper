@@ -108,6 +108,8 @@ export function StockSidebar() {
     conceptGroups.set(UNCATEGORIZED, uncategorized)
   }
 
+  // The 问答 page has its own sidebar; the stock sidebar doesn't belong there.
+  if (pathname.startsWith('/chat')) return null
   if (stocks.length === 0) return null
 
   // A multi-tag stock renders once per tag group. Attach the scroll target ref
