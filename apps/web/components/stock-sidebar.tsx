@@ -36,8 +36,10 @@ export function StockSidebar() {
     activeItemRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [activeCode])
 
+  // no-store: always re-fetch the current order so a just-queried stock (bumped
+  // to the top server-side) shows immediately instead of a cached, stale list.
   const load = () =>
-    apiFetch(`/api/stocks`)
+    apiFetch(`/api/stocks`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => { if (d.data) setStocks(d.data) })
       .catch(() => {})
@@ -45,7 +47,16 @@ export function StockSidebar() {
   useEffect(() => {
     load()
     window.addEventListener('stocks-updated', load)
-    return () => window.removeEventListener('stocks-updated', load)
+    // Also refresh when returning to the tab — e.g. a 后台DeepSeek query that
+    // finished on another machine bumped a stock while this tab was in the back.
+    const onFocus = () => { if (document.visibilityState === 'visible') load() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.removeEventListener('stocks-updated', load)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
   }, [])
 
   useEffect(() => {
